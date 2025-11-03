@@ -14,6 +14,7 @@ public class FeatureList {
  //public static final String ENCABEZADO = "Bienvenido, elige la que prefieras!!";
   public static final String ESPACIOS = "";
   public static final String ESPACIOSII = "";
+  public static final String INTERPRETATION_IMAGES = "Interpretación de Imágenes";
 
 
   // Global
@@ -81,38 +82,40 @@ public class FeatureList {
   @NotNull
   public static ArrayList<Category> getCategories() {
 
-    //Se crean las listas de los componentes a seleccionar
-    ArrayList<Category> categories = new ArrayList<>();
-    ArrayList<SubCategory> subCategories;
+      ArrayList<Category> categories = new ArrayList<>();
+      ArrayList<SubCategory> subCategories;
 
-    //subCategories = new ArrayList<>();
-    //subCategories.add(new SubCategory(FREE_ROAM, R.drawable.ic_game, "#FFFF6D00"));
-    //subCategories.add(new SubCategory(DATA_COLLECTION, R.drawable.ic_storage, "#93C47D"));
-    //subCategories.add(new SubCategory(CONTROLLER_MAPPING, R.drawable.ic_controller, "#7268A6"));
+      // --- INICIA EL CÓDIGO CORREGIDO ---
 
-    subCategories = new ArrayList<>();
-    subCategories.add(new SubCategory(ROBOT_INFO, R.drawable.ic_omnibot, "#00ff0080"));
-    //categories.add(new Category(GENERAL, subCategories));
-    categories.add(new Category(ENCABEZADO, subCategories));
+      // 1. Creamos el Item 0: SÓLO EL TÍTULO
+      //    Creamos una lista de subcategorías vacía para él.
+      subCategories = new ArrayList<>();
+      categories.add(new Category(ENCABEZADO, subCategories));
 
+      // 2. Creamos el Item 1: SÓLO "IRobot"
+      //    Usamos el título vacío "ESPACIOS"
+      subCategories = new ArrayList<>();
+      subCategories.add(new SubCategory(ROBOT_INFO, R.drawable.ic_omnibot, "#00ff0080"));
+      categories.add(new Category(ESPACIOS, subCategories));
 
-    subCategories = new ArrayList<>();
-    //subCategories.add(new SubCategory(AUTOPILOT, R.drawable.ic_autopilot, "#44525F"));
-    subCategories.add(new SubCategory(OBJECT_NAV, R.drawable.ic_nao, "#00ff0080"));
-    //subCategories.add(
-    //    new SubCategory(POINT_GOAL_NAVIGATION, R.drawable.ic_baseline_golf_course, "#1BBFBF"));
-    categories.add(new Category(ESPACIOS,subCategories));
+      // 3. Creamos el Item 2: SÓLO "Seguir Objetos"
+      subCategories = new ArrayList<>();
+      subCategories.add(new SubCategory(OBJECT_NAV, R.drawable.ic_nao, "#00ff0080"));
+      categories.add(new Category(ESPACIOS,subCategories));
 
-    subCategories = new ArrayList<>();
-    subCategories.add(new SubCategory(MODEL_MANAGEMENT, R.drawable.ic_list_bulleted_48_movimiento, "#00ff0080"));
-    //categories.add(new Category(AI, subCategories));
-    categories.add(new Category(ESPACIOS, subCategories));
+      // 4. Creamos el Item 3: SÓLO "Gestion de Modelos"
+      subCategories = new ArrayList<>();
+      subCategories.add(new SubCategory(MODEL_MANAGEMENT, R.drawable.ic_list_bulleted_48_movimiento, "#00ff0080"));
+      categories.add(new Category(ESPACIOS, subCategories));
 
-    subCategories = new ArrayList<>();
-    //subCategories = new ArrayList<>();
-    subCategories.add(new SubCategory(DEFAULT, R.drawable.ic_legacy_car_movimiento, "#00ff0080"));
-    //categories.add(new Category(LEGACY, subCategories));
-    categories.add(new Category(ESPACIOS,subCategories));
+      // 5. Creamos el Item 4: SÓLO "Estandar"
+      subCategories = new ArrayList<>();
+      subCategories.add(new SubCategory(DEFAULT, R.drawable.ic_legacy_car_movimiento, "#00ff0080"));
+      categories.add(new Category(ESPACIOS,subCategories));
+
+      subCategories = new ArrayList<>();
+      subCategories.add(new SubCategory(INTERPRETATION_IMAGES, R.drawable.ic_camera, "#00ff0080")); // Usa un ícono y color que te gusten
+      categories.add(new Category(ESPACIOS, subCategories));
 
     /*
         subCategories = new ArrayList<>();

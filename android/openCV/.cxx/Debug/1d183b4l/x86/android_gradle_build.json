@@ -1,19 +1,19 @@
 {
   "buildFiles": [
-    "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\libcxx_helper\\CMakeLists.txt"
+    "C:\\Users\\Angel2\\Desktop\\IRobot\\IRobot\\android\\openCV\\libcxx_helper\\CMakeLists.txt"
   ],
   "cleanCommandsComponents": [
     [
-      "C:\\Users\\reyes\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "C:\\Users\\Angel2\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
       "-C",
-      "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\.cxx\\Debug\\1d183b4l\\x86",
+      "C:\\Users\\Angel2\\Desktop\\IRobot\\IRobot\\android\\openCV\\.cxx\\Debug\\1d183b4l\\x86",
       "clean"
     ]
   ],
   "buildTargetsCommandComponents": [
-    "C:\\Users\\reyes\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "C:\\Users\\Angel2\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
     "-C",
-    "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\.cxx\\Debug\\1d183b4l\\x86",
+    "C:\\Users\\Angel2\\Desktop\\IRobot\\IRobot\\android\\openCV\\.cxx\\Debug\\1d183b4l\\x86",
     "{LIST_OF_TARGETS_TO_BUILD}"
   ],
   "libraries": {
@@ -21,13 +21,13 @@
       "toolchain": "toolchain",
       "abi": "x86",
       "artifactName": "opencv_jni_shared",
-      "output": "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\.cxx\\Debug\\1d183b4l\\x86\\libopencv_jni_shared.a"
+      "output": "C:\\Users\\Angel2\\Desktop\\IRobot\\IRobot\\android\\openCV\\.cxx\\Debug\\1d183b4l\\x86\\libopencv_jni_shared.a"
     }
   },
   "toolchains": {
     "toolchain": {
-      "cCompilerExecutable": "C:\\Users\\reyes\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe",
-      "cppCompilerExecutable": "C:\\Users\\reyes\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe"
+      "cCompilerExecutable": "C:\\Users\\Angel2\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe",
+      "cppCompilerExecutable": "C:\\Users\\Angel2\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe"
     }
   },
   "cFileExtensions": [],

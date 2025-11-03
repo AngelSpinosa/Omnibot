@@ -27,7 +27,7 @@ import timber.log.Timber;
 import java.nio.charset.StandardCharsets;
 
 
-public class UsbConnection {
+public class  UsbConnection {
   private static final int USB_VENDOR_ID = 6790; // 0x234109YRZ[_KNDSA  aqw67u
   // ]5
   private static final int USB_PRODUCT_ID = 29987; // 0x0001;

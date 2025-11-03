@@ -10,6 +10,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import org.openbot.R;
 import org.openbot.common.FeatureList;
@@ -38,7 +39,22 @@ public class MainFragment extends Fragment implements OnItemClickListener<SubCat
     super.onViewCreated(view, savedInstanceState);
 
     mViewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
-    binding.list.setLayoutManager(new LinearLayoutManager(requireContext()));
+
+    //Ordenar el grid para que el titulo utilice el espacio de dos celdas
+    int spanCount = 2; // El número de columnas
+    GridLayoutManager gridLayoutManager = new GridLayoutManager(requireContext(), spanCount);
+
+    gridLayoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+      @Override
+      public int getSpanSize(int position) {
+        // Si es el primer item (posición 0), haz que ocupe las 2 columnas (spanCount).
+        // Si no, que ocupe solo 1.
+        return (position == 0) ? spanCount : 1;
+      }
+    });
+
+    binding.list.setLayoutManager(gridLayoutManager);
+
     //Llenamos nuestra lista de elementos, estos declarados en la clase "FeactureList"
     binding.list.setAdapter(new CategoryAdapter(FeatureList.getCategories(), this));
   }
@@ -101,6 +117,11 @@ public class MainFragment extends Fragment implements OnItemClickListener<SubCat
 
       case FeatureList.DEFAULT:
         Intent intent = new Intent(requireActivity(), DefaultActivity.class);
+        startActivity(intent);
+        break;
+
+      case FeatureList.INTERPRETATION_IMAGES:
+        intent = new Intent(requireActivity(), InterpretationActivity.class);
         startActivity(intent);
         break;
     }

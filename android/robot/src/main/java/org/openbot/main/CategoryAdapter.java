@@ -34,15 +34,24 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
   public void onBindViewHolder(final ViewHolder holder, int position) {
     holder.mItem = mValues.get(position);
     holder.title.setText(mValues.get(position).getTitle());
-    holder.subCategoryList.setLayoutManager(
-        new LinearLayoutManager(holder.itemView.getContext(), RecyclerView.HORIZONTAL, false));
+    // Creamos un LayoutManager personalizado que NO permite el scroll horizontal
+    LinearLayoutManager layoutManager = new LinearLayoutManager(holder.itemView.getContext(), RecyclerView.HORIZONTAL, false) {
+      @Override
+      public boolean canScrollHorizontally() {
+        return false; // <-- Esto deshabilita el scroll
+      }
+    };
+
+    // Asignamos el LayoutManager modificado
+    holder.subCategoryList.setLayoutManager(layoutManager);
+
     holder.subCategoryList.setAdapter(
-        new SubCategoryAdapter(holder.mItem.getSubCategories(), itemClickListener));
+            new SubCategoryAdapter(holder.mItem.getSubCategories(), itemClickListener));
     if (holder.subCategoryList.getItemDecorationCount() == 0)
       holder.subCategoryList.addItemDecoration(
-          new MarginItemDecoration(
-              (int)
-                  holder.itemView.getContext().getResources().getDimension(R.dimen.feed_padding)));
+              new MarginItemDecoration(
+                      (int)
+                              holder.itemView.getContext().getResources().getDimension(R.dimen.feed_padding)));
   }
 
   @Override

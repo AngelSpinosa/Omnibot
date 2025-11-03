@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <string name="app_name">Omnibot</string>
+    <string name="app_name">Omnibot2</string>
     <string name="activity_name">Omnibot</string>
     <string name="description_info">Info</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
