@@ -104,7 +104,7 @@ println "OpenCV: " +openCVersionName + " " + project.buildscript.sourceFile
 
 android {
 
-    buildFeatures{
+    buildFeatures {
         aidl = true
         buildConfig = true
         viewBinding = true
@@ -117,13 +117,6 @@ android {
         minSdkVersion 21
         targetSdkVersion 33
 
-
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_STL=c++_shared"
-                targets "opencv_jni_shared"
-            }
-        }
     }
 
     compileOptions {
@@ -173,12 +166,14 @@ android {
             withJavadocJar()
         }
     }
-
+/*
     externalNativeBuild {
         cmake {
             path (project.projectDir.toString() + '/libcxx_helper/CMakeLists.txt')
         }
     }
+
+ */
 }
 
 publishing {

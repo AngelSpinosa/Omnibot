@@ -17,14 +17,11 @@ apply plugin: 'de.undercouch.download'
 apply plugin: 'com.google.firebase.crashlytics'
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 36
     defaultConfig {
         applicationId "org.openbot"
-        minSdkVersion 21
-        targetSdkVersion 32  //Modificado Anters 32
-        ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
-        }
+        minSdkVersion 24
+        targetSdkVersion 36
     }
 
     buildTypes {
@@ -44,13 +41,13 @@ android {
     compileOptions {
         coreLibraryDesugaringEnabled true
 
-        sourceCompatibility = '11'
-        targetCompatibility = '11'
+        sourceCompatibility = JavaVersion.VERSION_17  // <-- CAMBIADO
+        targetCompatibility = JavaVersion.VERSION_17  // <-- CAMBIADO
     }
 
     java {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(11)) // Cambia a 11 si decides usar Java 11
+            languageVersion.set(JavaLanguageVersion.of(17)) // Cambia a 11 si decides usar Java 11
         }
     }
 
@@ -64,6 +61,15 @@ android {
     namespace 'org.openbot'
     packagingOptions {
         resources.excludes.add("META-INF/*")
+
+        pickFirst 'lib/**/libopencv_java4.so'
+        pickFirst 'lib/**/libc++_shared.so'
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ["$rootDir/openCV/native/libs"]
+        }
     }
 }
 
@@ -118,14 +124,19 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.11.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
 
-    def camerax_version = "1.0.0"
-    // CameraX core library using camera2 implementation
+// --- INICIA BLOQUE MODIFICADO ---
+// Actualizado a la versión 1.3.1 para compatibilidad con la nueva actividad
+    def camerax_version = "1.3.1"
+
+// CameraX core library (requerida por la app de OpenCV)
+    implementation "androidx.camera:camera-core:$camerax_version"
+// CameraX core library using camera2 implementation
     implementation "androidx.camera:camera-camera2:$camerax_version"
-    // CameraX Lifecycle Library
+// CameraX Lifecycle Library
     implementation "androidx.camera:camera-lifecycle:$camerax_version"
-    // CameraX View class
-    implementation "androidx.camera:camera-view:1.0.0-alpha24"
-    //implementation 'com.github.anastr:speedviewlib:1.5.3'
+// CameraX View class (actualizado de 1.0.0-alpha24 a la versión estable)
+    implementation "androidx.camera:camera-view:$camerax_version"
+// --- TERMINA BLOQUE MODIFICADO ---
 
     implementation 'com.jakewharton.timber:timber:4.7.1'
     implementation 'androidx.fragment:fragment:1.3.4'
@@ -201,6 +212,5 @@ dependencies {
     }
 
     implementation 'com.github.anastr:speedviewlib:1.5.5' // o la versión que estés usando
-
 
 }

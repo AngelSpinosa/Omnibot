@@ -15,6 +15,8 @@ import android.hardware.usb.UsbManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.widget.Toast;
+
+import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
@@ -62,7 +64,7 @@ public class  UsbConnection {
               this.context, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
     } else {
       usbPermissionIntent =
-          PendingIntent.getBroadcast(this.context, 0, new Intent(ACTION_USB_PERMISSION), 0);
+          PendingIntent.getBroadcast(this.context, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
     }
   }
 
@@ -131,7 +133,7 @@ public class  UsbConnection {
     localIntentFilter.addAction(ACTION_USB_PERMISSION);
 
     localBroadcastManager.registerReceiver(usbReceiver, localIntentFilter);
-    context.registerReceiver(usbReceiver, localIntentFilter);
+    ContextCompat.registerReceiver(context, usbReceiver, localIntentFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
     //Obtiene la lista de los dispositivos conectados
     Map<String, UsbDevice> connectedDevices = usbManager.getDeviceList();
     //Verifica que la lista de los dispositos no este vacia
