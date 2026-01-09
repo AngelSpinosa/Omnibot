@@ -6,7 +6,7 @@
 			[
 				{
 					"build" : ".",
-					"jsonFile" : "directory-.-RelWithDebInfo-d0094a50bb2071803777.json",
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
 					"minimumCMakeVersion" : 
 					{
 						"string" : "3.6.0"
@@ -19,7 +19,7 @@
 					]
 				}
 			],
-			"name" : "RelWithDebInfo",
+			"name" : "Debug",
 			"projects" : 
 			[
 				{
@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "opencv_jni_shared::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-opencv_jni_shared-RelWithDebInfo-418244811f8799435f75.json",
+					"jsonFile" : "target-opencv_jni_shared-Debug-c49643127478b21d98a5.json",
 					"name" : "opencv_jni_shared",
 					"projectIndex" : 0
 				}
@@ -49,8 +49,8 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "C:/Users/reyes/Desktop/ServicioSocial/RepositorioGit/IRobot/android/openCV/.cxx/RelWithDebInfo/6r5o4v2k/x86",
-		"source" : "C:/Users/reyes/Desktop/ServicioSocial/RepositorioGit/IRobot/android/openCV/libcxx_helper"
+		"build" : "C:/Users/Angel2/Desktop/Omnibot/android/openCV/.cxx/Debug/1d183b4l/armeabi-v7a",
+		"source" : "C:/Users/Angel2/Desktop/Omnibot/android/openCV/libcxx_helper"
 	},
 	"version" : 
 	{

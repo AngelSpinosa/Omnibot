@@ -1,26 +1,26 @@
 {
   "buildFiles": [
-    "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\libcxx_helper\\CMakeLists.txt"
+    "C:\\Users\\Angel2\\Desktop\\Omnibot\\android\\openCV\\libcxx_helper\\CMakeLists.txt"
   ],
   "cleanCommandsComponents": [
     [
-      "C:\\Users\\reyes\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "C:\\Users\\Angel2\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
       "-C",
-      "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\.cxx\\RelWithDebInfo\\6r5o4v2k\\x86",
+      "C:\\Users\\Angel2\\Desktop\\Omnibot\\android\\openCV\\.cxx\\RelWithDebInfo\\6r5o4v2k\\x86",
       "clean"
     ]
   ],
   "buildTargetsCommandComponents": [
-    "C:\\Users\\reyes\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "C:\\Users\\Angel2\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
     "-C",
-    "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\.cxx\\RelWithDebInfo\\6r5o4v2k\\x86",
+    "C:\\Users\\Angel2\\Desktop\\Omnibot\\android\\openCV\\.cxx\\RelWithDebInfo\\6r5o4v2k\\x86",
     "{LIST_OF_TARGETS_TO_BUILD}"
   ],
   "libraries": {
     "opencv_jni_shared::@6890427a1f51a3e7e1df": {
       "artifactName": "opencv_jni_shared",
       "abi": "x86",
-      "output": "C:\\Users\\reyes\\Desktop\\ServicioSocial\\RepositorioGit\\IRobot\\android\\openCV\\.cxx\\RelWithDebInfo\\6r5o4v2k\\x86\\libopencv_jni_shared.a",
+      "output": "C:\\Users\\Angel2\\Desktop\\Omnibot\\android\\openCV\\.cxx\\RelWithDebInfo\\6r5o4v2k\\x86\\libopencv_jni_shared.a",
       "runtimeFiles": []
     }
   }

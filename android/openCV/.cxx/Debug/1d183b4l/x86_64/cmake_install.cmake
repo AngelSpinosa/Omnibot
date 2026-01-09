@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/Angel2/Desktop/IRobot/IRobot/android/openCV/libcxx_helper
+# Install script for directory: C:/Users/Angel2/Desktop/Omnibot/android/openCV/libcxx_helper
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "C:/Users/Angel2/Desktop/IRobot/IRobot/android/openCV/.cxx/Debug/1d183b4l/x86_64/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "C:/Users/Angel2/Desktop/Omnibot/android/openCV/.cxx/Debug/1d183b4l/x86_64/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

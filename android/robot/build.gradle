@@ -21,7 +21,7 @@ android {
     defaultConfig {
         applicationId "org.openbot"
         minSdkVersion 21
-        targetSdkVersion 32  //Modificado Anters 32
+        targetSdkVersion 33  //Modificado Anters 32
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
         }
