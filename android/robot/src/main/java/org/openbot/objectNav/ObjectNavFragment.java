@@ -6,6 +6,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Point; // IMPORTANTE: Agregado para usar Point
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -94,7 +95,7 @@ public class ObjectNavFragment extends CameraFragment {
 
   @Override
   public View onCreateView(
-      @NotNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+          @NotNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
     // Inflar el diseño para este fragmento
     binding = FragmentObjectNavBinding.inflate(inflater, container, false);
     return inflateFragment(binding, inflater, container);
@@ -109,25 +110,25 @@ public class ObjectNavFragment extends CameraFragment {
 
     // Configura el botón para aumentar el valor de confianza
     binding.plusConfidence.setOnClickListener(
-        v -> {
-          String trimConfValue = binding.confidenceValue.getText().toString().trim();
-          int confValue = Integer.parseInt(trimConfValue.substring(0, trimConfValue.length() - 1));
-          if (confValue >= 95) return;
-          confValue += 5;
-          binding.confidenceValue.setText(confValue + "%");
-          MINIMUM_CONFIDENCE_TF_OD_API = confValue / 100f;
-        });
+            v -> {
+              String trimConfValue = binding.confidenceValue.getText().toString().trim();
+              int confValue = Integer.parseInt(trimConfValue.substring(0, trimConfValue.length() - 1));
+              if (confValue >= 95) return;
+              confValue += 5;
+              binding.confidenceValue.setText(confValue + "%");
+              MINIMUM_CONFIDENCE_TF_OD_API = confValue / 100f;
+            });
 
     // Configura el botón para disminuir el valor de confianza
     binding.minusConfidence.setOnClickListener(
-        v -> {
-          String trimConfValue = binding.confidenceValue.getText().toString().trim();
-          int confValue = Integer.parseInt(trimConfValue.substring(0, trimConfValue.length() - 1));
-          if (confValue <= 5) return;
-          confValue -= 5;
-          binding.confidenceValue.setText(confValue + "%");
-          MINIMUM_CONFIDENCE_TF_OD_API = confValue / 100f;
-        });
+            v -> {
+              String trimConfValue = binding.confidenceValue.getText().toString().trim();
+              int confValue = Integer.parseInt(trimConfValue.substring(0, trimConfValue.length() - 1));
+              if (confValue <= 5) return;
+              confValue -= 5;
+              binding.confidenceValue.setText(confValue + "%");
+              MINIMUM_CONFIDENCE_TF_OD_API = confValue / 100f;
+            });
 
 //-------------------------------------------------------------------------//
 
@@ -146,16 +147,16 @@ public class ObjectNavFragment extends CameraFragment {
     // Configura el tipo de robot y las preferencias
     classType = preferencesManager.getObjectType();
     binding.classType.setOnItemSelectedListener(
-        new AdapterView.OnItemSelectedListener() {
-          @Override
-          public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-            classType = parent.getItemAtPosition(position).toString();
-            preferencesManager.setObjectType(classType);
-          }
+            new AdapterView.OnItemSelectedListener() {
+              @Override
+              public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                classType = parent.getItemAtPosition(position).toString();
+                preferencesManager.setObjectType(classType);
+              }
 
-          @Override
-          public void onNothingSelected(AdapterView<?> parent) {}
-        });
+              @Override
+              public void onNothingSelected(AdapterView<?> parent) {}
+            });
 
     // Configura el dispositivo seleccionado
     binding.deviceSpinner.setSelection(preferencesManager.getDevice());
@@ -166,11 +167,11 @@ public class ObjectNavFragment extends CameraFragment {
     binding.cameraToggle.setOnClickListener(v -> toggleCamera());
 
     // Configura el botón para controlar el espejo
-        // binding.mirrorControl.setOnClickListener(v -> mirrorControl());
+    // binding.mirrorControl.setOnClickListener(v -> mirrorControl());
 
     // Inicializa el spinner de modelos con los nombres de los modelos
     List<String> models =
-        getModelNames(f -> f.type.equals(Model.TYPE.DETECTOR) && f.pathType != Model.PATH_TYPE.URL);
+            getModelNames(f -> f.type.equals(Model.TYPE.DETECTOR) && f.pathType != Model.PATH_TYPE.URL);
     initModelSpinner(binding.modelSpinner, models, preferencesManager.getObjectNavModel());
 
     // Configura la resolución del analizador
@@ -178,36 +179,36 @@ public class ObjectNavFragment extends CameraFragment {
 
     // Configura el selector de dispositivos
     binding.deviceSpinner.setOnItemSelectedListener(
-        new AdapterView.OnItemSelectedListener() {
-          @Override
-          public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-            String selected = parent.getItemAtPosition(position).toString();
-            setDevice(Network.Device.valueOf(selected.toUpperCase()));
-          }
+            new AdapterView.OnItemSelectedListener() {
+              @Override
+              public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selected = parent.getItemAtPosition(position).toString();
+                setDevice(Network.Device.valueOf(selected.toUpperCase()));
+              }
 
-          @Override
-          public void onNothingSelected(AdapterView<?> parent) {}
-        });
+              @Override
+              public void onNothingSelected(AdapterView<?> parent) {}
+            });
 
     // Configura el botón para aumentar el número de hilos
     binding.plus.setOnClickListener(
-        v -> {
-          String threads = binding.threads.getText().toString().trim();
-          int numThreads = Integer.parseInt(threads);
-          if (numThreads >= 9) return;
-          setNumThreads(++numThreads);
-          binding.threads.setText(String.valueOf(numThreads));
-        });
+            v -> {
+              String threads = binding.threads.getText().toString().trim();
+              int numThreads = Integer.parseInt(threads);
+              if (numThreads >= 9) return;
+              setNumThreads(++numThreads);
+              binding.threads.setText(String.valueOf(numThreads));
+            });
 
     // Configura el botón para disminuir el número de hilos
     binding.minus.setOnClickListener(
-        v -> {
-          String threads = binding.threads.getText().toString().trim();
-          int numThreads = Integer.parseInt(threads);
-          if (numThreads == 1) return;
-          setNumThreads(--numThreads);
-          binding.threads.setText(String.valueOf(numThreads));
-        });
+            v -> {
+              String threads = binding.threads.getText().toString().trim();
+              int numThreads = Integer.parseInt(threads);
+              if (numThreads == 1) return;
+              setNumThreads(--numThreads);
+              binding.threads.setText(String.valueOf(numThreads));
+            });
 
     // Configura el estado inicial del BottomSheet
     BottomSheetBehavior.from(binding.aiBottomSheet).setState(BottomSheetBehavior.STATE_EXPANDED);
@@ -221,24 +222,24 @@ public class ObjectNavFragment extends CameraFragment {
 
     // Configura el botón para el toggle de USB
     binding.usbToggle.setOnClickListener(
-        v -> {
-          binding.usbToggle.setChecked(vehicle.isUsbConnected());
-          Navigation.findNavController(requireView()).navigate(R.id.open_usb_fragment);
-        });
+            v -> {
+              binding.usbToggle.setChecked(vehicle.isUsbConnected());
+              Navigation.findNavController(requireView()).navigate(R.id.open_usb_fragment);
+            });
 
     // Configura el botón para el toggle de Bluetooth
     binding.bleToggle.setOnClickListener(
-        v -> {
-          binding.bleToggle.setChecked(vehicle.bleConnected());
-          Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
-        });
+            v -> {
+              binding.bleToggle.setChecked(vehicle.bleConnected());
+              Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
+            });
 
     // Configura el botón para el toggle de Bluetooth
     binding.bleToggle.setOnClickListener(
-        v -> {
-          binding.bleToggle.setChecked(vehicle.bleConnected());
-          Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
-        });
+            v -> {
+              binding.bleToggle.setChecked(vehicle.bleConnected());
+              Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
+            });
 
     // Configura el modo de velocidad, control y conducción
     setSpeedMode(Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()));
@@ -247,21 +248,21 @@ public class ObjectNavFragment extends CameraFragment {
 
     // Configura los botones de control de modo
     binding.controllerContainer.controlMode.setOnClickListener(
-        v -> {
-          Enums.ControlMode controlMode =
-              Enums.ControlMode.getByID(preferencesManager.getControlMode());
-          if (controlMode != null) setControlMode(Enums.switchControlMode(controlMode));
-        });
+            v -> {
+              Enums.ControlMode controlMode =
+                      Enums.ControlMode.getByID(preferencesManager.getControlMode());
+              if (controlMode != null) setControlMode(Enums.switchControlMode(controlMode));
+            });
     binding.controllerContainer.driveMode.setOnClickListener(
-        v -> setDriveMode(Enums.switchDriveMode(vehicle.getDriveMode())));
+            v -> setDriveMode(Enums.switchDriveMode(vehicle.getDriveMode())));
 
     // Configura el botón de modo de velocidad
     binding.controllerContainer.speedMode.setOnClickListener(
-        v ->
-            setSpeedMode(
-                Enums.toggleSpeed(
-                    Enums.Direction.CYCLIC.getValue(),
-                    Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()))));
+            v ->
+                    setSpeedMode(
+                            Enums.toggleSpeed(
+                                    Enums.Direction.CYCLIC.getValue(),
+                                    Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()))));
 
     // Configura el interruptor automático
     binding.autoSwitch.setOnClickListener(v -> setNetworkEnabled(binding.autoSwitch.isChecked()));
@@ -269,10 +270,10 @@ public class ObjectNavFragment extends CameraFragment {
     // Configura la velocidad dinámica
     binding.dynamicSpeed.setChecked(preferencesManager.getDynamicSpeed());
     binding.dynamicSpeed.setOnClickListener(
-        v -> {
-          preferencesManager.setDynamicSpeed(binding.dynamicSpeed.isChecked());
-          tracker.setDynamicSpeed(preferencesManager.getDynamicSpeed());
-        });
+            v -> {
+              preferencesManager.setDynamicSpeed(binding.dynamicSpeed.isChecked());
+              tracker.setDynamicSpeed(preferencesManager.getDynamicSpeed());
+            });
   }
 
   //LINEA COMENTADA 278
@@ -283,10 +284,10 @@ public class ObjectNavFragment extends CameraFragment {
 
   //Actualiza la información de recorte de la imagen.
   private void updateCropImageInfo() {
-        Timber.i("%s x %s",getPreviewSize().getWidth(), getPreviewSize().getHeight());
-        Timber.i("%s x %s",getMaxAnalyseImageSize().getWidth(), getMaxAnalyseImageSize().getHeight());
-        Timber.i("Vista de tamaño: %s x %s", getPreviewSize().getWidth(), getPreviewSize().getHeight());
-        Timber.i("Vista de tamaño: %s x %s", getMaxAnalyseImageSize().getWidth(), getMaxAnalyseImageSize().getHeight());
+    Timber.i("%s x %s",getPreviewSize().getWidth(), getPreviewSize().getHeight());
+    Timber.i("%s x %s",getMaxAnalyseImageSize().getWidth(), getMaxAnalyseImageSize().getHeight());
+    Timber.i("Vista de tamaño: %s x %s", getPreviewSize().getWidth(), getPreviewSize().getHeight());
+    Timber.i("Vista de tamaño: %s x %s", getMaxAnalyseImageSize().getWidth(), getMaxAnalyseImageSize().getHeight());
 
     frameToCropTransform = null;
 
@@ -295,8 +296,8 @@ public class ObjectNavFragment extends CameraFragment {
 
     //Calcula el tamaño del texto en píxeles
     final float textSizePx =
-        TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
+            TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
     BorderedText borderedText = new BorderedText(textSizePx);
     borderedText.setTypeface(Typeface.MONOSPACE);
 
@@ -315,22 +316,30 @@ public class ObjectNavFragment extends CameraFragment {
     }
 
 
-   //Dibuja el contorno del objeto encontrado
+    //Dibuja el contorno del objeto encontrado
     binding.trackingOverlay.addCallback(
-        canvas -> {
-          tracker.draw(canvas);   //Aqui es donde lo dibuja
-          //tracker.draww(canvas);
-          //          tracker.drawDebug(canvas);
-            //AQUI DEBE MANDAR EL ARRAY DE LAS COORDENADA
-          vehicle.receiveCenterOfTrackedObject(tracker.getCenterOfTrackedObject());
-          tracker.clearTrackedObjects();
-        });
+            canvas -> {
+              tracker.draw(canvas);   //Aqui es donde lo dibuja
+
+              // --- NUEVO: Enviar coordenadas para Pan-Tilt ---
+              // Obtenemos el centro del objeto detectado
+              Point center = tracker.getCenterOfTrackedObject();
+
+              // Si hay un objeto, movemos la cabeza para centrarlo
+              if (center != null) {
+                // Llamamos a la nueva función en Vehicle, pasando las dimensiones del canvas
+                vehicle.trackObject(center, canvas.getWidth(), canvas.getHeight());
+              }
+              // ----------------------------------------------
+
+              tracker.clearTrackedObjects();
+            });
 
     //Configura el tamaño del marco y la orientación del sensor para el tracker
     tracker.setFrameConfiguration(
-        getMaxAnalyseImageSize().getWidth(),
-        getMaxAnalyseImageSize().getHeight(),
-        sensorOrientation);
+            getMaxAnalyseImageSize().getWidth(),
+            getMaxAnalyseImageSize().getHeight(),
+            sensorOrientation);
   }
 
 
@@ -365,51 +374,51 @@ public class ObjectNavFragment extends CameraFragment {
 
       assert detector != null;
       croppedBitmap =
-          Bitmap.createBitmap(
-              detector.getImageSizeX(), detector.getImageSizeY(), Bitmap.Config.ARGB_8888);
+              Bitmap.createBitmap(
+                      detector.getImageSizeX(), detector.getImageSizeY(), Bitmap.Config.ARGB_8888);
       frameToCropTransform =
-          ImageUtils.getTransformationMatrix(
-              getMaxAnalyseImageSize().getWidth(),
-              getMaxAnalyseImageSize().getHeight(),
-              croppedBitmap.getWidth(),
-              croppedBitmap.getHeight(),
-              sensorOrientation,
-              detector.getCropRect(),
-              detector.getMaintainAspect());
+              ImageUtils.getTransformationMatrix(
+                      getMaxAnalyseImageSize().getWidth(),
+                      getMaxAnalyseImageSize().getHeight(),
+                      croppedBitmap.getWidth(),
+                      croppedBitmap.getHeight(),
+                      sensorOrientation,
+                      detector.getCropRect(),
+                      detector.getMaintainAspect());
 
       cropToFrameTransform = new Matrix();
       frameToCropTransform.invert(cropToFrameTransform);
 
       requireActivity()
-          .runOnUiThread(
-              () -> {
-                ArrayAdapter<String> adapter =
-                    new ArrayAdapter<>(
-                        getContext(),
-                        android.R.layout.simple_dropdown_item_1line,
-                        detector.getLabels());
-                binding.classType.setAdapter(adapter);
-                binding.classType.setSelection(
-                    detector.getLabels().indexOf(preferencesManager.getObjectType()));
-                binding.inputResolution.setText(
-                    String.format(
-                        Locale.getDefault(),
-                        "%dx%d",
-                        detector.getImageSizeX(),
-                        detector.getImageSizeY()));
-              });
+              .runOnUiThread(
+                      () -> {
+                        ArrayAdapter<String> adapter =
+                                new ArrayAdapter<>(
+                                        getContext(),
+                                        android.R.layout.simple_dropdown_item_1line,
+                                        detector.getLabels());
+                        binding.classType.setAdapter(adapter);
+                        binding.classType.setSelection(
+                                detector.getLabels().indexOf(preferencesManager.getObjectType()));
+                        binding.inputResolution.setText(
+                                String.format(
+                                        Locale.getDefault(),
+                                        "%dx%d",
+                                        detector.getImageSizeX(),
+                                        detector.getImageSizeY()));
+                      });
 
     } catch (IllegalArgumentException | IOException e) {
       String msg = "Failed to create network.";
       Timber.e(e, msg);
       requireActivity()
-          .runOnUiThread(
-              () ->
-                  Toast.makeText(
-                          requireContext().getApplicationContext(),
-                          e.getMessage(),
-                          Toast.LENGTH_LONG)
-                      .show());
+              .runOnUiThread(
+                      () ->
+                              Toast.makeText(
+                                              requireContext().getApplicationContext(),
+                                              e.getMessage(),
+                                              Toast.LENGTH_LONG)
+                                      .show());
     }
   }
 
@@ -450,7 +459,7 @@ public class ObjectNavFragment extends CameraFragment {
     switch (commandType) {
       case Constants.CMD_DRIVE:
         binding.controllerContainer.controlInfo.setText(
-            String.format(Locale.US, "%.0f,%.0f"));
+                String.format(Locale.US, "%.0f,%.0f"));
         break;
 
       case Constants.CMD_NETWORK:
@@ -507,77 +516,63 @@ public class ObjectNavFragment extends CameraFragment {
       }
 
       computingNetwork = true;
-    // Timber.i("Colocando la imagen " + frameNum + " para detección en el hilo de fondo.");
+      // Timber.i("Colocando la imagen " + frameNum + " para detección en el hilo de fondo.");
 
       runInBackground(
-          () -> {
-            final Canvas canvas = new Canvas(croppedBitmap);
-            if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-              canvas.drawBitmap(
-                  CameraUtils.flipBitmapHorizontal(bitmap), frameToCropTransform, null);
-            } else {
-              canvas.drawBitmap(bitmap, frameToCropTransform, null);
-            }
-
-            //Detección de objetos
-            if (detector != null) {
-              //Timber.i("Ejecutando detección en la imagen %s", frameNum);
-              final long startTime = SystemClock.elapsedRealtime();
-              final List<Detector.Recognition> results =
-                  detector.recognizeImage(croppedBitmap, classType);
-              lastProcessingTimeMs = SystemClock.elapsedRealtime() - startTime;
-                /*
-              if (!results.isEmpty()) {
-                System.out.println("Esta reconociendo un objeto");
-
-                Timber.i(
-                        "Objeto: "
-                                + "X: " + results.get(0).getLocation().centerX()
-                                + ", "
-                                + "Y: " + results.get(0).getLocation().centerY()
-                                + ", "
-                                + "H: " + results.get(0).getLocation().height()
-                                + ", "
-                                + "W: " + results.get(0).getLocation().width());
-              } */
-              cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
-              final Canvas canvas1 = new Canvas(cropCopyBitmap);
-              final Paint paint = new Paint();
-              paint.setColor(Color.RED);
-              paint.setStyle(Paint.Style.STROKE);
-              paint.setStrokeWidth(2.0f);
-
-              final List<Detector.Recognition> mappedRecognitions = new LinkedList<>();
-
-              for (final Detector.Recognition result : results) {
-                final RectF location = result.getLocation();
-                if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
-                  //Dibuja el rectangulo alrededor del rectangulo detectado
-                  canvas1.drawRect(location, paint);
-
-                  // Transforma la ubicación del rectángulo y agrega a `mappedRecognitions`
-                  cropToFrameTransform.mapRect(location);
-                  result.setLocation(location);
-                  mappedRecognitions.add(result);
+              () -> {
+                final Canvas canvas = new Canvas(croppedBitmap);
+                if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+                  canvas.drawBitmap(
+                          CameraUtils.flipBitmapHorizontal(bitmap), frameToCropTransform, null);
+                } else {
+                  canvas.drawBitmap(bitmap, frameToCropTransform, null);
                 }
-              }
-              //AQUI AL DETECTAR LA IMAGEN MANDA COMANDOS PARA AVANZAR AL ROBOT
-              tracker.trackResults(mappedRecognitions, frameNum);
-              //System.out.println("Resultados rastreados: " + mappedRecognitions.toString() + " en el frame " + frameNum);
-              Control target = tracker.updateTarget();
-              //System.out.println("Objetivo actualizado: " + target.toString());
-              if (mirrorControl) {
-                //System.out.println("Espejo de control activado. Mandando comando espejo.");
-                handleDriveCommand(target.mirror());
-              } else {
-                //System.out.println("Mandando comando directo.");
-                handleDriveCommand(target);
-              }
-              binding.trackingOverlay.postInvalidate();
-            }
 
-            computingNetwork = false;
-          });
+                //Detección de objetos
+                if (detector != null) {
+                  //Timber.i("Ejecutando detección en la imagen %s", frameNum);
+                  final long startTime = SystemClock.elapsedRealtime();
+                  final List<Detector.Recognition> results =
+                          detector.recognizeImage(croppedBitmap, classType);
+                  lastProcessingTimeMs = SystemClock.elapsedRealtime() - startTime;
+
+                  cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+                  final Canvas canvas1 = new Canvas(cropCopyBitmap);
+                  final Paint paint = new Paint();
+                  paint.setColor(Color.RED);
+                  paint.setStyle(Paint.Style.STROKE);
+                  paint.setStrokeWidth(2.0f);
+
+                  final List<Detector.Recognition> mappedRecognitions = new LinkedList<>();
+
+                  for (final Detector.Recognition result : results) {
+                    final RectF location = result.getLocation();
+                    if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
+                      //Dibuja el rectangulo alrededor del rectangulo detectado
+                      canvas1.drawRect(location, paint);
+
+                      // Transforma la ubicación del rectángulo y agrega a `mappedRecognitions`
+                      cropToFrameTransform.mapRect(location);
+                      result.setLocation(location);
+                      mappedRecognitions.add(result);
+                    }
+                  }
+                  //AQUI AL DETECTAR LA IMAGEN MANDA COMANDOS PARA AVANZAR AL ROBOT
+                  tracker.trackResults(mappedRecognitions, frameNum);
+
+                  // --- MODIFICADO: DESACTIVAMOS LAS LLANTAS ---
+                  // Control target = tracker.updateTarget();
+                  // handleDriveCommand(target); (COMENTADO PARA NO MOVER LLANTAS)
+
+                  // Opcional: Forzar llantas a cero
+                  vehicle.setControl(0, 0);
+                  // ---------------------------------------------
+
+                  binding.trackingOverlay.postInvalidate();
+                }
+
+                computingNetwork = false;
+              });
       if (lastProcessingTimeMs > 0) {
         if (isBenchmarkMode) {
           double avgProcessingTimeMs = movingAvgProcessingTimeMs.next(lastProcessingTimeMs);
@@ -591,10 +586,10 @@ public class ObjectNavFragment extends CameraFragment {
 
   private void updateFpsUi(double processingTimeMs) {
     requireActivity()
-        .runOnUiThread(
-            () ->
-                binding.inferenceInfo.setText(
-                    String.format(Locale.US, "%.1f fps", 1000.f / processingTimeMs)));
+            .runOnUiThread(
+                    () ->
+                            binding.inferenceInfo.setText(
+                                    String.format(Locale.US, "%.1f fps", 1000.f / processingTimeMs)));
   }
 
   private void resetFpsUi() {

@@ -68,7 +68,12 @@ public class Vehicle {
   SharedPreferences sharedPreferences;
   public String connectionType;
 
-
+  // --- VARIABLES PARA PANTILT ---
+  private int currentPan = 0;  // Angulo actual X
+  private int currentTilt = 0; // Angulo actual Y
+  private long lastPanTiltTime = 0; // Para el throttling (50ms)
+  private static final int PANTILT_INTERVAL_MS = 50;
+  // ------------------------------
 
   public float getMinMotorVoltage() {
     return minMotorVoltage;
@@ -242,9 +247,9 @@ public class Vehicle {
 
   public int getBatteryPercentage() {
     return (int)
-        ((batteryVoltage.getReading() - lowBatteryVoltage)
-            * 100
-            / (maxBatteryVoltage - lowBatteryVoltage));
+            ((batteryVoltage.getReading() - lowBatteryVoltage)
+                    * 100
+                    / (maxBatteryVoltage - lowBatteryVoltage));
   }
 
   public void setBatteryVoltage(float batteryVoltage) {
@@ -388,7 +393,6 @@ public class Vehicle {
 
   //Inicia una conexcion USB e inicia un temporizador
   public void connectUsb() {
-
     if (usbConnection == null) usbConnection = new UsbConnection(context, baudRate);
     usbConnected = usbConnection.startUsbConnection();
     if (usbConnected) {
@@ -396,13 +400,6 @@ public class Vehicle {
         startHeartbeat();
       }
     }
-
-    /*
-    if (usbConnection == null) usbConnection = new UsbConnection(context, baudRate);
-    usbConnected = usbConnection.startUsbConnection();
-    if (usbConnected) {
-      sendMessageFrank("c100,100"); // Envía un mensaje inicial al conectar USB
-    } */
   }
 
   //Desconecta el usb
@@ -420,47 +417,14 @@ public class Vehicle {
     return usbConnected;
   }
 
-  /*
-  //Envia el mensaje, ya sea si esta conectado por USB o por Bluetooth
-  private void sendStringToDevice(String message) {
-    //System.out.println("MENSAJE ENVIADO AL ROBOT: " + message);
-    if (getConnectionType().equals("USB") && usbConnection != null) {
-      usbConnection.send(message); //METODO QUE ENVIA EL MENSAJE AL ROBOT
-      //System.out.println("Este mensaje se envia: " + message);
-      //Timber.i("MENSAJE ENVIADO POR CONEXION SERIAL ES: " + message);
-    } else if (getConnectionType().equals("Bluetooth")
-        && bluetoothManager != null
-        && bluetoothManager.isBleConnected()) {
-      sendStringToBle(message);
-    }
-  }*/
-
-/*
-  //Manda valores en entero
-  private void sendStringToDevice(int message) {
-    //System.out.println("MENSAJE ENVIADO AL ROBOT: " + message);
-    if (getConnectionType().equals("USB") && usbConnection != null) {
-      usbConnection.send(message); //METODO QUE ENVIA EL MENSAJE AL ROBOT
-      //System.out.println("Este mensaje se envia: " + message);
-      //Timber.i("MENSAJE ENVIADO POR CONEXION SERIAL ES: " + message);
-    } else if (getConnectionType().equals("Bluetooth")
-            && bluetoothManager != null
-            && bluetoothManager.isBleConnected()) {
-    }
-  }
-  */
-
-
   private void sendBytesToDevice(byte[] message) {
     if (getConnectionType().equals("USB") && usbConnection != null) {
-      usbConnection.send(message); // Método que acepte byte[]
+      usbConnection.send(message);
     } else if(getConnectionType().equals("Bluetooth")
             && bluetoothManager != null
             && bluetoothManager.isBleConnected()) {
     }
   }
-
-
 
   public float getLeftSpeed() {
     return control.getLeft() * speedMultiplier;
@@ -474,24 +438,7 @@ public class Vehicle {
     int front = (int) (frontPercent * 255.f);
     int back = (int) (backPercent * 255.f);
     //sendStringToDevice(String.format(Locale.US, "l%d,%d\n", front, back));
-    //System.out.println(String.format(Locale.US, "l%d,%d\n", front, back));
   }
-/*
-  //Funcion qye manda al robot las coordenadas localizadas que son el centroide del objeto rastreado
-  public void sendCordinateRobot(int coordX, int coordY){
-    String cordenadas = coordX  + "," + coordY;
-    sendStringToDevice(cordenadas);
-  }
- */
-
-
-  /*
-  public void sendCordinateRobot(int coordX){
-    int cordenadas = coordX;
-    //int [] coordenadas = {coordX, coordY};
-    sendStringToDevice(cordenadas);
-  } */
-
 
   //Metodo para mandar por un arreglo
   public void sendCoordinatesToRobot(int coordX, int coordY) {
@@ -504,27 +451,15 @@ public class Vehicle {
 
 
   public void sendConteoPrueba() {
-    for (int i = 1; i <= 180; i++) { // Ciclo de 1 a 180
-      String conteo = String.valueOf(i); // Convertir el número a String
-      //sendStringToDevice(conteo); // Enviar el conteo al dispositivo
+    for (int i = 1; i <= 180; i++) {
+      String conteo = String.valueOf(i);
       try {
-        Thread.sleep(1000); // Esperar 1 segundo (1000 milisegundos)
+        Thread.sleep(1000);
       } catch (InterruptedException e) {
-        e.printStackTrace(); // Manejo de excepción si se interrumpe el ciclo
+        e.printStackTrace();
       }
     }
   }
-
-/*
-  // Método para recibir la posición central del objeto rastreado y enviar las coordenadas al robot
-  public void receiveCenterOfTrackedObject(Point centerPoint) {
-    if (centerPoint != null) {
-      int coordX = centerPoint.x;
-      int coordY = centerPoint.y;
-      sendCordinateRobot(coordX, coordY);
-    }
-  }
-  */
 
   public void receiveCenterOfTrackedObject(Point centerPoint) {
     if (centerPoint != null) {
@@ -535,26 +470,8 @@ public class Vehicle {
     }
   }
 
-
-
-
   //Obtiene las velocidades de las ruedas, las ajusta y envia un comando de control
   public void sendControl() {
-    /*
-    int left = (int) (getLeftSpeed());
-    int right = (int) (getRightSpeed());
-    if (noiseEnabled && noise.getDirection() < 0)
-      left =
-          (int)
-              ((control.getLeft() - noise.getValue())
-                  * speedMultiplier); // dado que el valor del ruido no tiene el componente speedMultiplier,
-    // raw control value is used
-    if (noiseEnabled && noise.getDirection() > 0)
-      right = (int) ((control.getRight() - noise.getValue()) * speedMultiplier);
-
-    sendStringToDevice(String.format(Locale.US, "c%d,%d\n", left, right));
-  */
-
     int left = (int) (getLeftSpeed());
     int right = (int) (getRightSpeed());
     if (noiseEnabled && noise.getDirection() < 0) {
@@ -566,14 +483,12 @@ public class Vehicle {
     //sendStringToDevice(String.format(Locale.US, "c%d,%d\n", left, right));
   }
 
-  //MODIFICAR ESTA LINEA PARA QUE MANDE ALGUNA OPCION.
   protected void sendMessageFrank(String message) {
-      //sendStringToDevice("f");
+    //sendStringToDevice("f");
   }
 
   protected void sendHeartbeat(int timeout_ms) {
     //sendStringToDevice(String.format(Locale.getDefault(), "h%d\n", timeout_ms));
-    //sendStringToDevice(String.format("p"));
   }
   protected void setSonarFrequency(int interval_ms) {
     //sendStringToDevice(String.format(Locale.getDefault(), "s%d\n", interval_ms));
@@ -587,12 +502,95 @@ public class Vehicle {
     //sendStringToDevice(String.format(Locale.getDefault(), "w%d\n", interval_ms));
   }
 
+  // --- LOGICA NUEVA PARA PANTILT (SEGUIMIENTO DE OBJETOS) ---
+
+  /**
+   * Recibe el centro del objeto y mueve el Pan-Tilt para centrarlo.
+   * Llama a esta función desde tu ciclo de tracking.
+   * @param centerPoint El punto central del objeto detectado
+   * @param frameWidth Ancho de la imagen (canvas)
+   * @param frameHeight Alto de la imagen (canvas)
+   */
+  public void trackObject(Point centerPoint, int frameWidth, int frameHeight) {
+    if (centerPoint == null) return;
+
+    // 1. Calcular error (desviación del centro)
+    // Suponemos que el centro de la imagen es (width/2, height/2)
+    int centerX = frameWidth / 2;
+    int centerY = frameHeight / 2;
+
+    int errorX = centerPoint.x - centerX;
+    int errorY = centerPoint.y - centerY;
+
+    // 2. Definir una "zona muerta" (deadzone)
+    // Si el objeto está casi en el centro (ej. +/- 20 pixeles), no movemos nada para evitar vibraciones
+    int deadzone = 20;
+
+    // 3. Ganancia (Velocidad de reacción)
+    // Qué tantos grados mover por cada pixel de error. Ajusta este valor si es muy rápido o lento.
+    // Usamos float para precisión y luego redondeamos
+    float gainX = 0.1f;
+    float gainY = 0.1f;
+
+    boolean moved = false;
+
+    // Ajuste Pan (Eje X)
+    if (Math.abs(errorX) > deadzone) {
+      // Si el objeto está a la derecha (error positivo), debemos mover la cámara a la derecha (aumentar/disminuir según servo)
+      // Ajusta el signo (+/-) si se mueve al revés
+      currentPan -= (int)(errorX * gainX);
+      moved = true;
+    }
+
+    // Ajuste Tilt (Eje Y)
+    if (Math.abs(errorY) > deadzone) {
+      // Si el objeto está abajo (error positivo en Y), debemos bajar la cámara
+      currentTilt += (int)(errorY * gainY);
+      moved = true;
+    }
+
+    // 4. Límites de seguridad (Clamping) definidos en tu PDF
+    // Pan: +/- 180 (o el rango de tus servos)
+    currentPan = Math.max(-180, Math.min(180, currentPan));
+    // Tilt: -30 a 90
+    currentTilt = Math.max(-30, Math.min(90, currentTilt));
+
+    // 5. Enviar solo si hubo movimiento y respetando el throttling
+    if (moved) {
+      sendPanTilt(currentPan, currentTilt);
+    }
+  }
+
+  /**
+   * Construye el JSON y lo envía por USB si ha pasado el tiempo de espera.
+   */
+  public void sendPanTilt(int pan, int tilt) {
+    long currentTime = System.currentTimeMillis();
+
+    // Throttling: Solo enviar si pasaron 50ms desde el último comando
+    if (currentTime - lastPanTiltTime < PANTILT_INTERVAL_MS) {
+      return;
+    }
+
+    lastPanTiltTime = currentTime;
+
+    // Construcción del comando JSON exacto del reporte:
+    // {"T":133,"X":pan,"Y":tilt,"SPD":0,"ACC":0}\n
+    String jsonCommand = String.format(Locale.US, "{\"T\":133,\"X\":%d,\"Y\":%d,\"SPD\":0,\"ACC\":0}\n", pan, tilt);
+
+    // Enviar bytes
+    sendBytesToDevice(jsonCommand.getBytes(StandardCharsets.UTF_8));
+  }
+
+  // ---------------------------------------------------------
+
+
   private class HeartBeatTask extends TimerTask {
 
     @Override
     public void run() {
-       //sendHeartbeat(750);
-       // sendMessageFrank("f");
+      //sendHeartbeat(750);
+      // sendMessageFrank("f");
     }
   }
 
@@ -623,8 +621,8 @@ public class Vehicle {
   }
 
   public void setBleAdapter(
-      ScanDeviceAdapter adapter,
-      @NonNull CommonRecyclerViewAdapter.OnItemClickListener onItemClickListener) {
+          ScanDeviceAdapter adapter,
+          @NonNull CommonRecyclerViewAdapter.OnItemClickListener onItemClickListener) {
     bluetoothManager.adapter = adapter;
     bluetoothManager.adapter.setOnItemClickListener(onItemClickListener);
   }

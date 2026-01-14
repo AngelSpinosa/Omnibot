@@ -58,11 +58,11 @@ public class  UsbConnection {
     usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
       usbPermissionIntent =
-          PendingIntent.getBroadcast(
-              this.context, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
+              PendingIntent.getBroadcast(
+                      this.context, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
     } else {
       usbPermissionIntent =
-          PendingIntent.getBroadcast(this.context, 0, new Intent(ACTION_USB_PERMISSION), 0);
+              PendingIntent.getBroadcast(this.context, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
     }
   }
 
@@ -70,58 +70,58 @@ public class  UsbConnection {
   //UsbSerialInterface.UsbReadCallback interfaz llamada cuando se reciben datos de USB
   private final UsbSerialInterface.UsbReadCallback callback =
           //Expresion lambda donde reciben un arreglo de datos bynarios
-      data -> {
-        try {
-          //Linea para convertir los bynarios a String
-          String dataUtf8 = new String(data, "UTF-8");
-          //Se almacenan en un buffer
-          buffer += dataUtf8;
-          //Recorrido del buffer
-          int index;
-          while ((index = buffer.indexOf('\n')) != -1) {
-            //Obtiene el buffer y elimina los espacios
-            final String dataStr = buffer.substring(0, index).trim();
-            //Actualiza el buffer pero ahora sin espacios
-            buffer = buffer.length() == index ? "" : buffer.substring(index + 1);
+          data -> {
+            try {
+              //Linea para convertir los bynarios a String
+              String dataUtf8 = new String(data, "UTF-8");
+              //Se almacenan en un buffer
+              buffer += dataUtf8;
+              //Recorrido del buffer
+              int index;
+              while ((index = buffer.indexOf('\n')) != -1) {
+                //Obtiene el buffer y elimina los espacios
+                final String dataStr = buffer.substring(0, index).trim();
+                //Actualiza el buffer pero ahora sin espacios
+                buffer = buffer.length() == index ? "" : buffer.substring(index + 1);
 
-            AsyncTask.execute(() -> onSerialDataReceived(dataStr));
-          }
-        } catch (UnsupportedEncodingException e) {
-          LOGGER.e("Error receiving USB data");
-        }
-      };
+                AsyncTask.execute(() -> onSerialDataReceived(dataStr));
+              }
+            } catch (UnsupportedEncodingException e) {
+              LOGGER.e("Error receiving USB data");
+            }
+          };
 
   //Verifica permisos para conexion con el USB
   private final BroadcastReceiver usbReceiver =
-      new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-          String action = intent.getAction();
-          if (ACTION_USB_PERMISSION.equals(action)) {
-            synchronized (this) {
-              UsbDevice usbDevice = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-              if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                if (usbDevice != null) {
-                  // call method to set up device communication
-                  startSerialConnection(usbDevice);
+          new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
+              String action = intent.getAction();
+              if (ACTION_USB_PERMISSION.equals(action)) {
+                synchronized (this) {
+                  UsbDevice usbDevice = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                  if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                    if (usbDevice != null) {
+                      // call method to set up device communication
+                      startSerialConnection(usbDevice);
+                    }
+                  } else {
+                    LOGGER.d("Permission denied for device " + usbDevice);
+                    Toast.makeText(
+                                    UsbConnection.this.context,
+                                    "USB Host permission is required!",
+                                    Toast.LENGTH_LONG)
+                            .show();
+                  }
                 }
-              } else {
-                LOGGER.d("Permission denied for device " + usbDevice);
-                Toast.makeText(
-                        UsbConnection.this.context,
-                        "USB Host permission is required!",
-                        Toast.LENGTH_LONG)
-                    .show();
+              } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+                LOGGER.i("USB device detached");
+                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                if (device != null) {
+                  stopUsbConnection();
+                }
               }
             }
-          } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
-            LOGGER.i("USB device detached");
-            UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-            if (device != null) {
-              stopUsbConnection();
-            }
-          }
-        }
-      };
+          };
 
 
   //Utiliza un broadcast para manejar eventos del dispositivo USB y caracteristicas.
@@ -161,13 +161,12 @@ public class  UsbConnection {
   //Inicia la conexion con un dispositico USB
   private boolean startSerialConnection(UsbDevice device) {
     LOGGER.i("Ready to open USB device connection");
-    //Timber.d("Listo para abrir la conexion con el dispositivo USB");
     Timber.i("Listo para abrir la conexion con el dispositivo USB ");
-    //Realiza la conexion con el USB
+
     connection = usbManager.openDevice(device);
     //System.out.println(connection.toString());
-    Timber.i(connection.toString());
-      //Descubre todas las caracteristicas de la USB
+
+    //Descubre todas las caracteristicas de la USB
     serialDevice = UsbSerialDevice.createUsbSerialDevice(device, connection);
     boolean success = false;
     if (serialDevice != null) {
@@ -181,7 +180,13 @@ public class  UsbConnection {
         serialDevice.setDataBits(UsbSerialInterface.DATA_BITS_8);
         serialDevice.setStopBits(UsbSerialInterface.STOP_BITS_1);
         serialDevice.setParity(UsbSerialInterface.PARITY_NONE);
-        serialDevice.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF);
+        serialDevice.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF); // El driver maneja esto
+
+        // --- MODIFICACION IMPORTANTE PARA ESP32/PANTILT ---
+        serialDevice.setDTR(true); // Data Terminal Ready
+        serialDevice.setRTS(true); // Request To Send
+        // --------------------------------------------------
+
         serialDevice.read(callback);
         LOGGER.i("Serial connection opened");
         success = true;
@@ -196,14 +201,9 @@ public class  UsbConnection {
 
   //Maneja los datos recibidos, muestra los logs de datos recibidos  y envia un broadcast
   private void onSerialDataReceived(String data) {
-    // Add whatever you want here
-    //LOGGER.i("Serial data received from USB: " + data);
     Timber.d("Datos seriales recibidos desde el USB: " + data);
-    //Envia y recibe mensajes dentro de la misma aplicacoin
     localBroadcastManager.sendBroadcast(new Intent(Constants.DEVICE_ACTION_DATA_RECEIVED)
-            //Indica que la fuente de informacion es un dispositivo USB
             .putExtra("from", "usb")
-            //Indica que los datos que han sido recibidos y que los componentes que escuchen este broadcast podrán acceder a los datos
             .putExtra("data", data));
   }
 
@@ -223,69 +223,26 @@ public class  UsbConnection {
     }
     localBroadcastManager.unregisterReceiver(usbReceiver);
     try {
-
-      // Register or UnRegister your broadcast receiver here
       context.unregisterReceiver(usbReceiver);
     } catch (IllegalArgumentException e) {
       e.printStackTrace();
     }
   }
 
-  //Envía un mensaje a través de la conexión serial USB aegurando que el dispositivo este activo y disponible
-  /*
-  public void send(String msg) {
-    //Pregunta si el dispositivo se encuentra activo
-    if (isOpen() && !isBusy()) {
-      busy = true;
-      //Convierte el mensaje String en un arreglo de bytes
-      //El metodoo write manda a través del cable usb
-      serialDevice.write(msg.getBytes(UTF_8));  //
-      //System.out.println(serialDevice.toString());
-      //Timber.d(serialDevice.toString());
-      busy = false;
-      Timber.i("MENSAJE ENVIADO POR CONEXION SERIAL ES: " + msg);
-    } else {
-      //System.out.println("MENSAJE ENVIADO AL ROBOT: " + msg);
-      Timber.d("USB ocupada, no se pudo enviar: %s", msg);
-    }
-  }*/
-
-//Manda valores enteros
-/*
-  public void send(int msg) {
-    if (isOpen() && !isBusy()) {
-      busy = true;
-
-      // Convertir entero a String con salto de línea, luego a bytes
-      String mensaje = msg + "\n";  // <-- Arduino leerá hasta '\n'
-      serialDevice.write(mensaje.getBytes(UTF_8));  // ✅
-
-      busy = false;
-      Timber.i("MENSAJE ENVIADO POR CONEXION SERIAL ES: " + msg);
-    } else {
-      Timber.d("USB ocupada, no se pudo enviar: %s", msg);
-    }
-  }
-*/
-
-
   public void send(byte[] message) {
     if (isOpen() && !isBusy()) {
       busy = true;
 
       // Enviar directamente el arreglo de bytes al dispositivo serial
-      serialDevice.write(message);  // <-- Asegúrate que `serialDevice.write(...)` acepte byte[]
+      serialDevice.write(message);
 
       busy = false;
-      Timber.i("MENSAJE ENVIADO POR CONEXION SERIAL ES: " + Arrays.toString(message));
+      // Comentado para evitar spam en logs
+      // Timber.i("MENSAJE ENVIADO POR CONEXION SERIAL ES: " + Arrays.toString(message));
     } else {
       Timber.d("USB ocupada, no se pudo enviar el arreglo de bytes");
     }
   }
-
-
-
-
 
   public boolean isOpen() {
     return connection != null;
