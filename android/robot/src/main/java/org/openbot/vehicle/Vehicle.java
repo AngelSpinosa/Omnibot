@@ -68,12 +68,61 @@ public class Vehicle {
   SharedPreferences sharedPreferences;
   public String connectionType;
 
-  // --- VARIABLES PARA PANTILT ---
-  private int currentPan = 0;  // Angulo actual X
-  private int currentTilt = 0; // Angulo actual Y
-  private long lastPanTiltTime = 0; // Para el throttling (50ms)
-  private static final int PANTILT_INTERVAL_MS = 50;
-  // ------------------------------
+  // --- PANTILT: Variables y PID ---
+  private int currentPan = 0;
+  private int currentTilt = 0;
+  private long lastPanTiltTime = 0;
+  private static final int PANTILT_INTERVAL_MS = 40;
+
+  // PID SUAVIZADO:
+  // Kp bajado a 0.04 (Reacción más lenta/suave)
+  // Ki bajado a 0.01 (Menos acumulación)
+  // Kd subido a 0.05 (Más "freno" para evitar oscilaciones)
+  private PIDController panPid = new PIDController(0.04f, 0.01f, 0.05f);
+
+  // NUEVO: Velocidad Máxima (Grados por ciclo de 40ms)
+  // 5 grados por ciclo = max 125 grados/segundo aprox. Suficiente para tracking suave.
+  private int maxPanStep = 5;
+  // ------------------------------------
+
+  // --- CLASE INTERNA PID MEJORADA (Anti-Windup) ---
+  private class PIDController {
+    private float kp, ki, kd;
+    private float previousError = 0;
+    private float integral = 0;
+    // Limite para evitar que la integral crezca infinito (Anti-Windup)
+    private float maxIntegral = 500; // Reducido para evitar bloqueos largos
+
+    public PIDController(float kp, float ki, float kd) {
+      this.kp = kp;
+      this.ki = ki;
+      this.kd = kd;
+    }
+
+    public float calculate(float setpoint, float actual) {
+      // Error = (Donde está el objeto) - (Donde quiero que esté/Centro)
+      float error = actual - setpoint;
+
+      // Integral (acumulativa) con Limite (Clamping)
+      integral += error;
+      if (integral > maxIntegral) integral = maxIntegral;
+      else if (integral < -maxIntegral) integral = -maxIntegral;
+
+      // Derivada
+      float derivative = error - previousError;
+
+      float output = (kp * error) + (ki * integral) + (kd * derivative);
+
+      previousError = error;
+      return output;
+    }
+
+    public void reset() {
+      previousError = 0;
+      integral = 0;
+    }
+  }
+  // ---------------------------------------------------------
 
   public float getMinMotorVoltage() {
     return minMotorVoltage;
@@ -187,12 +236,10 @@ public class Vehicle {
     this.vehicleType = vehicleType;
   }
 
-  //Envía el comando "f\n" para solicitar la configuración del vehículo.
   public void requestVehicleConfig() {
     //sendStringToDevice(String.format(Locale.US, "f\n"));
   }
 
-  //Procesa una cadena de texto que contiene informacion del vehiculo, en este caso el BODY (cuerpo)
   public void processVehicleConfig(String message) {
     setVehicleType(message.split(":")[0]);
 
@@ -370,8 +417,6 @@ public class Vehicle {
     return indicator;
   }
 
-
-  //
   public void setIndicator(int indicator) {
     this.indicator = indicator;
     switch (indicator) {
@@ -391,7 +436,6 @@ public class Vehicle {
     return usbConnection;
   }
 
-  //Inicia una conexcion USB e inicia un temporizador
   public void connectUsb() {
     if (usbConnection == null) usbConnection = new UsbConnection(context, baudRate);
     usbConnected = usbConnection.startUsbConnection();
@@ -399,10 +443,10 @@ public class Vehicle {
       if (heartbeatTimer == null) {
         startHeartbeat();
       }
+      resetPanTilt();
     }
   }
 
-  //Desconecta el usb
   public void disconnectUsb() {
     if (usbConnection != null) {
       stopBot();
@@ -440,15 +484,13 @@ public class Vehicle {
     //sendStringToDevice(String.format(Locale.US, "l%d,%d\n", front, back));
   }
 
-  //Metodo para mandar por un arreglo
   public void sendCoordinatesToRobot(int coordX, int coordY) {
-    ByteBuffer buffer = ByteBuffer.allocate(8); // 4 bytes por coordenada
+    ByteBuffer buffer = ByteBuffer.allocate(8);
     buffer.putInt(coordX);
     buffer.putInt(coordY);
     byte[] byteArray = buffer.array();
     sendBytesToDevice(byteArray);
   }
-
 
   public void sendConteoPrueba() {
     for (int i = 1; i <= 180; i++) {
@@ -461,16 +503,12 @@ public class Vehicle {
     }
   }
 
-  public void receiveCenterOfTrackedObject(Point centerPoint) {
+  public void receiveCenterOfTrackedObject(Point centerPoint, int frameWidth, int frameHeight) {
     if (centerPoint != null) {
-      int coordX = centerPoint.x;
-      int coordY = centerPoint.y;
-      //sendCordinateRobot(coordX);
-      sendCoordinatesToRobot(coordX, coordY);
+      trackObject(centerPoint, frameWidth, frameHeight);
     }
   }
 
-  //Obtiene las velocidades de las ruedas, las ajusta y envia un comando de control
   public void sendControl() {
     int left = (int) (getLeftSpeed());
     int right = (int) (getRightSpeed());
@@ -502,83 +540,57 @@ public class Vehicle {
     //sendStringToDevice(String.format(Locale.getDefault(), "w%d\n", interval_ms));
   }
 
-  // --- LOGICA NUEVA PARA PANTILT (SEGUIMIENTO DE OBJETOS) ---
+  // --- LOGICA PANTILT CON PID MEJORADA (SUAVIZADO) ---
 
-  /**
-   * Recibe el centro del objeto y mueve el Pan-Tilt para centrarlo.
-   * Llama a esta función desde tu ciclo de tracking.
-   * @param centerPoint El punto central del objeto detectado
-   * @param frameWidth Ancho de la imagen (canvas)
-   * @param frameHeight Alto de la imagen (canvas)
-   */
+  public void resetPanTilt() {
+    currentPan = 0;
+    currentTilt = 0;
+    panPid.reset();
+    String jsonCommand = String.format(Locale.US, "{\"T\":133,\"X\":%d,\"Y\":%d,\"SPD\":0,\"ACC\":0}\n", 0, 0);
+    sendBytesToDevice(jsonCommand.getBytes(StandardCharsets.UTF_8));
+  }
+
   public void trackObject(Point centerPoint, int frameWidth, int frameHeight) {
     if (centerPoint == null) return;
 
-    // 1. Calcular error (desviación del centro)
-    // Suponemos que el centro de la imagen es (width/2, height/2)
     int centerX = frameWidth / 2;
-    int centerY = frameHeight / 2;
+    // int centerY = frameHeight / 2;
 
-    int errorX = centerPoint.x - centerX;
-    int errorY = centerPoint.y - centerY;
+    float pidOutput = panPid.calculate(centerX, centerPoint.x);
 
-    // 2. Definir una "zona muerta" (deadzone)
-    // Si el objeto está casi en el centro (ej. +/- 20 pixeles), no movemos nada para evitar vibraciones
-    int deadzone = 20;
+    int adjustment = Math.round(pidOutput);
 
-    // 3. Ganancia (Velocidad de reacción)
-    // Qué tantos grados mover por cada pixel de error. Ajusta este valor si es muy rápido o lento.
-    // Usamos float para precisión y luego redondeamos
-    float gainX = 0.1f;
-    float gainY = 0.1f;
+    // --- NUEVO: Limitador de Velocidad (Slew Rate Limiter) ---
+    // Evita saltos bruscos limitando cuántos grados puede cambiar en un ciclo
+    if (adjustment > maxPanStep) adjustment = maxPanStep;
+    else if (adjustment < -maxPanStep) adjustment = -maxPanStep;
+    // ---------------------------------------------------------
 
-    boolean moved = false;
-
-    // Ajuste Pan (Eje X)
-    if (Math.abs(errorX) > deadzone) {
-      // Si el objeto está a la derecha (error positivo), debemos mover la cámara a la derecha (aumentar/disminuir según servo)
-      // Ajusta el signo (+/-) si se mueve al revés
-      currentPan -= (int)(errorX * gainX);
-      moved = true;
+    // Zona muerta
+    if (Math.abs(centerPoint.x - centerX) > 40) {
+      currentPan += adjustment;
     }
 
-    // Ajuste Tilt (Eje Y)
-    if (Math.abs(errorY) > deadzone) {
-      // Si el objeto está abajo (error positivo en Y), debemos bajar la cámara
-      currentTilt += (int)(errorY * gainY);
-      moved = true;
-    }
+    // --- EJE Y (TILT) BLOQUEADO ---
+    currentTilt = 0;
 
-    // 4. Límites de seguridad (Clamping) definidos en tu PDF
-    // Pan: +/- 180 (o el rango de tus servos)
+    // Limites de seguridad
     currentPan = Math.max(-180, Math.min(180, currentPan));
-    // Tilt: -30 a 90
     currentTilt = Math.max(-30, Math.min(90, currentTilt));
 
-    // 5. Enviar solo si hubo movimiento y respetando el throttling
-    if (moved) {
-      sendPanTilt(currentPan, currentTilt);
-    }
+    sendPanTilt(currentPan, currentTilt);
   }
 
-  /**
-   * Construye el JSON y lo envía por USB si ha pasado el tiempo de espera.
-   */
   public void sendPanTilt(int pan, int tilt) {
     long currentTime = System.currentTimeMillis();
 
-    // Throttling: Solo enviar si pasaron 50ms desde el último comando
     if (currentTime - lastPanTiltTime < PANTILT_INTERVAL_MS) {
       return;
     }
 
     lastPanTiltTime = currentTime;
 
-    // Construcción del comando JSON exacto del reporte:
-    // {"T":133,"X":pan,"Y":tilt,"SPD":0,"ACC":0}\n
     String jsonCommand = String.format(Locale.US, "{\"T\":133,\"X\":%d,\"Y\":%d,\"SPD\":0,\"ACC\":0}\n", pan, tilt);
-
-    // Enviar bytes
     sendBytesToDevice(jsonCommand.getBytes(StandardCharsets.UTF_8));
   }
 
@@ -594,23 +606,20 @@ public class Vehicle {
     }
   }
 
-  //Inicia-crea un temporizador
   public void startHeartbeat() {
     heartbeatTimer = new Timer();
     HeartBeatTask heartBeatTask = new HeartBeatTask();
-    heartbeatTimer.schedule(heartBeatTask, 250, 250); // 250ms delay and 250ms interval
+    heartbeatTimer.schedule(heartBeatTask, 250, 250);
   }
 
-  //Para el temporizador
   public void stopHeartbeat() {
     if(heartbeatTimer != null) {
       heartbeatTimer.cancel();
-      heartbeatTimer.purge(); // remove all pending tasks from the queue
+      heartbeatTimer.purge();
       heartbeatTimer = null;
     }
   }
 
-  //Para el robot
   public void stopBot() {
     Control control = new Control(0, 0);
     setControl(control);

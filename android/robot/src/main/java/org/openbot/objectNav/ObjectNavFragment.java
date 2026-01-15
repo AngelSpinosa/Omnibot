@@ -6,7 +6,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Point; // IMPORTANTE: Agregado para usar Point
+import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -96,10 +96,8 @@ public class ObjectNavFragment extends CameraFragment {
   @Override
   public View onCreateView(
           @NotNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-    // Inflar el diseño para este fragmento
     binding = FragmentObjectNavBinding.inflate(inflater, container, false);
     return inflateFragment(binding, inflater, container);
-    //return binding.getRoot();
   }
 
   @Override
@@ -108,7 +106,6 @@ public class ObjectNavFragment extends CameraFragment {
 
     binding.confidenceValue.setText((int) (MINIMUM_CONFIDENCE_TF_OD_API * 100) + "%");
 
-    // Configura el botón para aumentar el valor de confianza
     binding.plusConfidence.setOnClickListener(
             v -> {
               String trimConfValue = binding.confidenceValue.getText().toString().trim();
@@ -119,7 +116,6 @@ public class ObjectNavFragment extends CameraFragment {
               MINIMUM_CONFIDENCE_TF_OD_API = confValue / 100f;
             });
 
-    // Configura el botón para disminuir el valor de confianza
     binding.minusConfidence.setOnClickListener(
             v -> {
               String trimConfValue = binding.confidenceValue.getText().toString().trim();
@@ -130,12 +126,8 @@ public class ObjectNavFragment extends CameraFragment {
               MINIMUM_CONFIDENCE_TF_OD_API = confValue / 100f;
             });
 
-//-------------------------------------------------------------------------//
-
-    // Configura el texto de información de velocidad
     binding.controllerContainer.speedInfo.setText(getString(R.string.speedInfo, "---,---"));
 
-    // Configura la visibilidad de los toggles según el tipo de conexión del vehículo
     if (vehicle.getConnectionType().equals("USB")) {
       binding.usbToggle.setVisibility(View.VISIBLE);
       binding.bleToggle.setVisibility(View.GONE);
@@ -144,7 +136,6 @@ public class ObjectNavFragment extends CameraFragment {
       binding.usbToggle.setVisibility(View.GONE);
     }
 
-    // Configura el tipo de robot y las preferencias
     classType = preferencesManager.getObjectType();
     binding.classType.setOnItemSelectedListener(
             new AdapterView.OnItemSelectedListener() {
@@ -158,26 +149,18 @@ public class ObjectNavFragment extends CameraFragment {
               public void onNothingSelected(AdapterView<?> parent) {}
             });
 
-    // Configura el dispositivo seleccionado
     binding.deviceSpinner.setSelection(preferencesManager.getDevice());
     setNumThreads(preferencesManager.getNumThreads());
     binding.threads.setText(String.valueOf(getNumThreads()));
 
-    // Configura el botón para alternar la cámara
     binding.cameraToggle.setOnClickListener(v -> toggleCamera());
 
-    // Configura el botón para controlar el espejo
-    // binding.mirrorControl.setOnClickListener(v -> mirrorControl());
-
-    // Inicializa el spinner de modelos con los nombres de los modelos
     List<String> models =
             getModelNames(f -> f.type.equals(Model.TYPE.DETECTOR) && f.pathType != Model.PATH_TYPE.URL);
     initModelSpinner(binding.modelSpinner, models, preferencesManager.getObjectNavModel());
 
-    // Configura la resolución del analizador
     setAnalyserResolution(Enums.Preview.HD.getValue());
 
-    // Configura el selector de dispositivos
     binding.deviceSpinner.setOnItemSelectedListener(
             new AdapterView.OnItemSelectedListener() {
               @Override
@@ -190,7 +173,6 @@ public class ObjectNavFragment extends CameraFragment {
               public void onNothingSelected(AdapterView<?> parent) {}
             });
 
-    // Configura el botón para aumentar el número de hilos
     binding.plus.setOnClickListener(
             v -> {
               String threads = binding.threads.getText().toString().trim();
@@ -200,7 +182,6 @@ public class ObjectNavFragment extends CameraFragment {
               binding.threads.setText(String.valueOf(numThreads));
             });
 
-    // Configura el botón para disminuir el número de hilos
     binding.minus.setOnClickListener(
             v -> {
               String threads = binding.threads.getText().toString().trim();
@@ -210,43 +191,29 @@ public class ObjectNavFragment extends CameraFragment {
               binding.threads.setText(String.valueOf(numThreads));
             });
 
-    // Configura el estado inicial del BottomSheet
     BottomSheetBehavior.from(binding.aiBottomSheet).setState(BottomSheetBehavior.STATE_EXPANDED);
 
-    // Observa el estado del USB
     mViewModel.getUsbStatus().observe(getViewLifecycleOwner(), status -> binding.usbToggle.setChecked(status));
 
-    // Configura el estado inicial de los toggles de USB y Bluetooth
     binding.usbToggle.setChecked(vehicle.isUsbConnected());
     binding.bleToggle.setChecked(vehicle.bleConnected());
 
-    // Configura el botón para el toggle de USB
     binding.usbToggle.setOnClickListener(
             v -> {
               binding.usbToggle.setChecked(vehicle.isUsbConnected());
               Navigation.findNavController(requireView()).navigate(R.id.open_usb_fragment);
             });
 
-    // Configura el botón para el toggle de Bluetooth
     binding.bleToggle.setOnClickListener(
             v -> {
               binding.bleToggle.setChecked(vehicle.bleConnected());
               Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
             });
 
-    // Configura el botón para el toggle de Bluetooth
-    binding.bleToggle.setOnClickListener(
-            v -> {
-              binding.bleToggle.setChecked(vehicle.bleConnected());
-              Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
-            });
-
-    // Configura el modo de velocidad, control y conducción
     setSpeedMode(Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()));
     setControlMode(Enums.ControlMode.getByID(preferencesManager.getControlMode()));
     setDriveMode(Enums.DriveMode.getByID(preferencesManager.getDriveMode()));
 
-    // Configura los botones de control de modo
     binding.controllerContainer.controlMode.setOnClickListener(
             v -> {
               Enums.ControlMode controlMode =
@@ -256,7 +223,6 @@ public class ObjectNavFragment extends CameraFragment {
     binding.controllerContainer.driveMode.setOnClickListener(
             v -> setDriveMode(Enums.switchDriveMode(vehicle.getDriveMode())));
 
-    // Configura el botón de modo de velocidad
     binding.controllerContainer.speedMode.setOnClickListener(
             v ->
                     setSpeedMode(
@@ -264,10 +230,8 @@ public class ObjectNavFragment extends CameraFragment {
                                     Enums.Direction.CYCLIC.getValue(),
                                     Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()))));
 
-    // Configura el interruptor automático
     binding.autoSwitch.setOnClickListener(v -> setNetworkEnabled(binding.autoSwitch.isChecked()));
 
-    // Configura la velocidad dinámica
     binding.dynamicSpeed.setChecked(preferencesManager.getDynamicSpeed());
     binding.dynamicSpeed.setOnClickListener(
             v -> {
@@ -276,88 +240,62 @@ public class ObjectNavFragment extends CameraFragment {
             });
   }
 
-  //LINEA COMENTADA 278
   private void mirrorControl() {
     requireActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
     mirrorControl = !mirrorControl;
   }
 
-  //Actualiza la información de recorte de la imagen.
   private void updateCropImageInfo() {
     Timber.i("%s x %s",getPreviewSize().getWidth(), getPreviewSize().getHeight());
-    Timber.i("%s x %s",getMaxAnalyseImageSize().getWidth(), getMaxAnalyseImageSize().getHeight());
-    Timber.i("Vista de tamaño: %s x %s", getPreviewSize().getWidth(), getPreviewSize().getHeight());
-    Timber.i("Vista de tamaño: %s x %s", getMaxAnalyseImageSize().getWidth(), getMaxAnalyseImageSize().getHeight());
 
     frameToCropTransform = null;
 
-    //Calcula la orientación del sensor de la cámara en relación con la pantalla del dispositivo.
+    // --- CORRECCIÓN: Volvemos a la detección dinámica ---
+    // Esto calculará 90 grados en Vertical y 0 grados en Horizontal,
+    // permitiendo que la IA detecte objetos en ambas posiciones.
     sensorOrientation = 90 - ImageUtils.getScreenOrientation(requireActivity());
+    // ---------------------------------------
 
-    //Calcula el tamaño del texto en píxeles
     final float textSizePx =
             TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
     BorderedText borderedText = new BorderedText(textSizePx);
     borderedText.setTypeface(Typeface.MONOSPACE);
 
-    //Inicia el objeto que realizara el seguimiento de los objetos de la vista
     tracker = new MultiBoxTracker(requireContext());
-    //Configura la velocidad dinámica del tracker basada en una preferencia almacenada.
     tracker.setDynamicSpeed(preferencesManager.getDynamicSpeed());
 
-    //Timber.i("Orientación de la cámara relativa al lienzo de la pantalla: %d", sensorOrientation);
-
-    // Recrea la red de procesamiento usando el modelo, el dispositivo y el numero de hilos
     recreateNetwork(getModel(), getDevice(), getNumThreads());
     if (detector == null) {
       Timber.e("No network on preview!");
       return;
     }
 
-
-    //Dibuja el contorno del objeto encontrado
     binding.trackingOverlay.addCallback(
             canvas -> {
-              tracker.draw(canvas);   //Aqui es donde lo dibuja
-
-              // --- NUEVO: Enviar coordenadas para Pan-Tilt ---
-              // Obtenemos el centro del objeto detectado
-              Point center = tracker.getCenterOfTrackedObject();
-
-              // Si hay un objeto, movemos la cabeza para centrarlo
-              if (center != null) {
-                // Llamamos a la nueva función en Vehicle, pasando las dimensiones del canvas
-                vehicle.trackObject(center, canvas.getWidth(), canvas.getHeight());
-              }
-              // ----------------------------------------------
-
+              tracker.draw(canvas);
+              // Envío de coordenadas al robot
+              vehicle.receiveCenterOfTrackedObject(tracker.getCenterOfTrackedObject(), canvas.getWidth(), canvas.getHeight());
               tracker.clearTrackedObjects();
             });
 
-    //Configura el tamaño del marco y la orientación del sensor para el tracker
     tracker.setFrameConfiguration(
             getMaxAnalyseImageSize().getWidth(),
             getMaxAnalyseImageSize().getHeight(),
             sensorOrientation);
   }
 
-
-
-  //Maneja los cambios en la configuración de la inferencia
   protected void onInferenceConfigurationChanged() {
     computingNetwork = false;
     if (croppedBitmap == null) {
-      // Defer creation until we're getting camera frames.
       return;
     }
-    final Network.Device device = getDevice();  //Devuelve el dispositivo que se va a utilizar para la inferencia (CPU, GPU, TPU)
-    final Model model = getModel();   //Devuelve el modelo de la red neuronal que se va a utilzar.
-    final int numThreads = getNumThreads(); //Devuelve el numero de hilos
-    runInBackground(() -> recreateNetwork(model, device, numThreads));    //Recrea la red neuronal
+    final Network.Device device = getDevice();
+    final Model model = getModel();
+    final int numThreads = getNumThreads();
+    runInBackground(() -> recreateNetwork(model, device, numThreads));
   }
 
-  //Metodo que recrea la red Neuronal
   private void recreateNetwork(Model model, Network.Device device, int numThreads) {
     resetFpsUi();
     if (model == null) return;
@@ -452,8 +390,6 @@ public class ObjectNavFragment extends CameraFragment {
     }
   }
 
-
-
   @Override
   protected void processControllerKeyData(String commandType) {
     switch (commandType) {
@@ -470,7 +406,6 @@ public class ObjectNavFragment extends CameraFragment {
 
   @Override
   protected void processUSBData(String data) {
-
   }
 
   private void setNetworkEnabledWithAudio(boolean b) {
@@ -497,26 +432,15 @@ public class ObjectNavFragment extends CameraFragment {
   @SuppressLint("SuspiciousIndentation")
   @Override
   protected void processFrame(Bitmap bitmap, ImageProxy image) {
-
-    /* Obtener el ancho y el alto de la imagen
-    int imageWidth = bitmap.getWidth();
-    int imageHeight = bitmap.getHeight();
-
-    // Imprimir el tamaño total de la imagen
-   //System.out.println("Tamaño de la imagen: Ancho = " + imageWidth + ", Alto = " + imageHeight);
-     */
-
     if (tracker == null) updateCropImageInfo();
 
     ++frameNum;
     if (binding != null && binding.autoSwitch.isChecked()) {
-      // If network is busy, return.
       if (computingNetwork) {
         return;
       }
 
       computingNetwork = true;
-      // Timber.i("Colocando la imagen " + frameNum + " para detección en el hilo de fondo.");
 
       runInBackground(
               () -> {
@@ -528,9 +452,7 @@ public class ObjectNavFragment extends CameraFragment {
                   canvas.drawBitmap(bitmap, frameToCropTransform, null);
                 }
 
-                //Detección de objetos
                 if (detector != null) {
-                  //Timber.i("Ejecutando detección en la imagen %s", frameNum);
                   final long startTime = SystemClock.elapsedRealtime();
                   final List<Detector.Recognition> results =
                           detector.recognizeImage(croppedBitmap, classType);
@@ -548,25 +470,15 @@ public class ObjectNavFragment extends CameraFragment {
                   for (final Detector.Recognition result : results) {
                     final RectF location = result.getLocation();
                     if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
-                      //Dibuja el rectangulo alrededor del rectangulo detectado
                       canvas1.drawRect(location, paint);
-
-                      // Transforma la ubicación del rectángulo y agrega a `mappedRecognitions`
                       cropToFrameTransform.mapRect(location);
                       result.setLocation(location);
                       mappedRecognitions.add(result);
                     }
                   }
-                  //AQUI AL DETECTAR LA IMAGEN MANDA COMANDOS PARA AVANZAR AL ROBOT
+
                   tracker.trackResults(mappedRecognitions, frameNum);
-
-                  // --- MODIFICADO: DESACTIVAMOS LAS LLANTAS ---
-                  // Control target = tracker.updateTarget();
-                  // handleDriveCommand(target); (COMENTADO PARA NO MOVER LLANTAS)
-
-                  // Opcional: Forzar llantas a cero
                   vehicle.setControl(0, 0);
-                  // ---------------------------------------------
 
                   binding.trackingOverlay.postInvalidate();
                 }
@@ -598,10 +510,7 @@ public class ObjectNavFragment extends CameraFragment {
     requireActivity().runOnUiThread(() -> binding.inferenceInfo.setText(R.string.time_fps));
   }
 
-
-  //ESTE ES EL COMANDO QUE MANDA AL ROBOT, DEFINIENDO LA SINTAXIS
   protected void handleDriveCommand(Control control) {
-
   }
 
   protected Model getModel() {
@@ -721,7 +630,6 @@ public class ObjectNavFragment extends CameraFragment {
   private void connectPhoneController() {
     phoneController.connect(requireContext());
     Enums.DriveMode oldDriveMode = currentDriveMode;
-    // Currently only dual drive mode supported
     setDriveMode(Enums.DriveMode.DUAL);
     binding.controllerContainer.driveMode.setAlpha(0.5f);
     binding.controllerContainer.driveMode.setEnabled(false);
@@ -731,7 +639,6 @@ public class ObjectNavFragment extends CameraFragment {
   private void connectWebController() {
     phoneController.connectWebServer();
     Enums.DriveMode oldDriveMode = currentDriveMode;
-    // Currently only dual drive mode supported
     setDriveMode(Enums.DriveMode.GAME);
     binding.controllerContainer.driveMode.setAlpha(0.5f);
     binding.controllerContainer.driveMode.setEnabled(false);
