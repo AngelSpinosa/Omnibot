@@ -47,11 +47,22 @@ import org.openbot.vehicle.Control;
 import timber.log.Timber;
 
 
-/** Un rastreador que maneja la supresión no máxima y hace coincidir los objetos existentes con nuevas detecciones. */
+/**
+ * Clase MultiBoxTracker
+ * ---------------------
+ * Esta clase se encarga de:
+ * 1. Recibir los resultados de detección de la IA (Rectángulos/Bounding Boxes).
+ * 2. Dibujar estos rectángulos en la pantalla sobre la vista de cámara.
+ * 3. Calcular el centroide (punto central) de los objetos detectados.
+ * 4. Dibujar elementos de UI auxiliares como la Mira (Crosshair) y textos de confianza.
+ * 5. Mapear coordenadas entre el sistema de la IA (imagen pequeña) y la pantalla del celular.
+ */
 public class MultiBoxTracker {
   private static final float TEXT_SIZE_DIP = 18;
   //private static final float MIN_SIZE = 16.0f;
-  private static final float MIN_SIZE = 4.0f; // en lugar de 16.0f
+  private static final float MIN_SIZE = 4.0f; // Tamaño mínimo de caja para ser considerada válida
+
+  // Lista de colores para diferenciar múltiples objetos detectados
   private static final int[] COLORS = {
           Color.BLACK,
           Color.RED,
@@ -69,15 +80,16 @@ public class MultiBoxTracker {
           Color.parseColor("#AA33AA"),
           Color.parseColor("#0D0068")
   };
+
   final List<Pair<Float, RectF>> screenRects = new LinkedList<Pair<Float, RectF>>();
   private final Logger logger = new Logger();
   private final Queue<Integer> availableColors = new LinkedList<Integer>();
   private final List<TrackedRecognition> trackedObjects = new LinkedList<TrackedRecognition>();
-  private final Paint boxPaint = new Paint();
 
-  //Nueva linea de codigo
-  private final Paint centroidPaint = new Paint();
-  private final Paint crosshairPaint = new Paint();
+  // Pinceles para dibujo
+  private final Paint boxPaint = new Paint(); // Para el cuadro rojo
+  private final Paint centroidPaint = new Paint(); // Para el punto central azul
+  private final Paint crosshairPaint = new Paint(); // Para la mira verde central
 
 
   private final float textSizePx;
@@ -99,13 +111,16 @@ public class MultiBoxTracker {
   private Point currentCirclePoint = new Point(0, (int) circleY);
 
 
+  /**
+   * Constructor.
+   * Inicializa los pinceles (Paint) y estilos de dibujo.
+   */
   public MultiBoxTracker(final Context context) {
-    // Inicialización de colores disponibles
     for (final int color : COLORS) {
       availableColors.add(color);
     }
 
-    // Configuración del objeto de pintura
+    // Configuración del pincel para el cuadro (Bounding Box)
     boxPaint.setColor(Color.RED);
     boxPaint.setStyle(Style.STROKE);
     boxPaint.setStrokeWidth(10.0f);
@@ -113,10 +128,11 @@ public class MultiBoxTracker {
     boxPaint.setStrokeJoin(Join.ROUND);
     boxPaint.setStrokeMiter(100);
 
+    // Configuración del pincel para el centroide (Punto azul)
     centroidPaint.setColor(Color.BLUE);
     centroidPaint.setStyle(Paint.Style.FILL);
 
-    // Configuración de la Mira (Crosshair)
+    // Configuración del pincel para la Mira Central (Crosshair verde)
     crosshairPaint.setColor(Color.GREEN);
     crosshairPaint.setStyle(Style.STROKE);
     crosshairPaint.setStrokeWidth(5.0f);
@@ -127,17 +143,21 @@ public class MultiBoxTracker {
     borderedText = new BorderedText(textSizePx);
   }
 
-  //Configuracion del marco
+  /**
+   * Configura las dimensiones del frame de la cámara y la orientación del sensor.
+   * Necesario para mapear correctamente las coordenadas de la IA a la pantalla.
+   */
   public synchronized void setFrameConfiguration(final int width, final int height, final int sensorOrientation) {
     frameWidth = width;
     frameHeight = height;
     this.sensorOrientation = sensorOrientation;
   }
 
+  /**
+   * Dibuja información de depuración (rectángulos crudos sin procesar).
+   * No se usa en la vista normal de usuario.
+   */
   public synchronized void drawDebug(final Canvas canvas) {
-
-
-    // Configuración del objeto de pintura para texto
     final Paint textPaint = new Paint();
     textPaint.setColor(Color.WHITE);
     textPaint.setTextSize(60.0f);
@@ -155,7 +175,10 @@ public class MultiBoxTracker {
     }
   }
 
-  //Resultados de procesamiento de los datos
+  /**
+   * Recibe los resultados de la IA y los procesa para su visualización.
+   * @param results Lista de objetos reconocidos por el detector.
+   */
   public synchronized void trackResults(final List<Recognition> results, final long timestamp) {
     logger.i("Procesando %d resultados de %d", results.size(), timestamp);
     Timber.i("Procesando %d resultados de %d", results.size(), timestamp);
@@ -166,6 +189,10 @@ public class MultiBoxTracker {
     return frameToCanvasMatrix;
   }
 
+  /**
+   * Calcula la matriz de transformación para convertir coordenadas de la imagen
+   * de entrada (ej. 300x300) a las coordenadas de la pantalla del celular (ej. 1080x1920).
+   */
   private void updateFrameToCanvasMatrix(int canvasHeight, int canvasWidth) {
     final boolean rotated = sensorOrientation % 180 == 90;
     final float multiplier =
@@ -183,6 +210,10 @@ public class MultiBoxTracker {
                     false);
   }
 
+  /**
+   * Método antiguo para calcular control de ruedas basado en la posición del objeto.
+   * Actualmente no se usa para el Pan-Tilt, ya que usamos getCenterOfTrackedObject().
+   */
   public synchronized Control updateTarget() {
     if (!trackedObjects.isEmpty()) {
       final RectF trackedPos = new RectF(trackedObjects.get(0).location);
@@ -224,8 +255,12 @@ public class MultiBoxTracker {
             (0 > sensorOrientation) ? leftControl : rightControl);
   }
 
-  // Dibuja los cuadros de seguimiento en el lienzo
-
+  /**
+   * Método principal de dibujo. Se llama en cada cuadro de la cámara.
+   * 1. Actualiza la matriz de transformación.
+   * 2. Dibuja la Mira Central (Referencia para el usuario y el robot).
+   * 3. Itera sobre los objetos detectados y dibuja sus cajas y textos.
+   */
   public synchronized void draw(final Canvas canvas) {
     updateFrameToCanvasMatrix(canvas.getHeight(), canvas.getWidth());
 
@@ -235,31 +270,27 @@ public class MultiBoxTracker {
     for (final TrackedRecognition recognition : trackedObjects) {
       final RectF trackedPos = new RectF(recognition.location);
 
+      // Mapear el rectángulo de coordenadas IA a coordenadas Pantalla
       getFrameToCanvasMatrix().mapRect(trackedPos);
       boxPaint.setColor(recognition.color);
 
+      // Dibujar el cuadro con esquinas redondeadas
       float cornerSize = Math.min(trackedPos.width(), trackedPos.height()) / 8.0f;
       canvas.drawRoundRect(trackedPos, cornerSize, cornerSize, boxPaint);
 
-      // Dibuja el centroide del objeto NUEVA LINEA
+      // Dibuja el centroide del objeto (Punto Azul)
+      // Este punto es el que el robot intenta alinear con la mira verde
       float centerX = trackedPos.centerX();
       float centerY = trackedPos.centerY();
       canvas.drawCircle(centerX, centerY, 8.0f, centroidPaint);
 
 
-      // Dibuja las coordenadas como texto (opcional)
+      // Dibuja las coordenadas X,Y como texto para depuración visual
       borderedText.drawText(
               canvas, centerX + 10, centerY - 10,
               String.format(Locale.US, "(%.1f, %.1f)", centerX, centerY), centroidPaint);
 
-      final String labelStringg =
-              !TextUtils.isEmpty(recognition.title)
-                      ? String.format(Locale.US, "%s %.2f", recognition.title, (100 * recognition.detectionConfidence))
-                      : String.format(Locale.US, "%.2f", 100 * recognition.detectionConfidence);
-      borderedText.drawText(
-              canvas, trackedPos.left + cornerSize, trackedPos.top, labelStringg + "%", boxPaint);
-
-
+      // Etiqueta con nombre del objeto y % de confianza
       final String labelString =
               !TextUtils.isEmpty(recognition.title)
                       ? String.format(
@@ -270,20 +301,24 @@ public class MultiBoxTracker {
     }
   }
 
-  // --- NUEVA FUNCION: Dibujar la Mira ---
+  /**
+   * Dibuja una cruz verde en el centro exacto del Canvas.
+   * Sirve como referencia visual del "Setpoint" (Objetivo) del sistema de control.
+   */
   private void drawCrosshair(Canvas canvas) {
     int centerX = canvas.getWidth() / 2;
     int centerY = canvas.getHeight() / 2;
-    int size = 50; // Tamaño de la mira
+    int size = 50; // Longitud de las líneas de la mira
 
     // Linea Horizontal
     canvas.drawLine(centerX - size, centerY, centerX + size, centerY, crosshairPaint);
     // Linea Vertical
     canvas.drawLine(centerX, centerY - size, centerX, centerY + size, crosshairPaint);
-    // Circulo central
+    // Circulo central pequeño
     canvas.drawCircle(centerX, centerY, 20, crosshairPaint);
   }
 
+  // Método auxiliar antiguo para pruebas de dibujo
   public synchronized void draww(final Canvas canvas) {
     updateFrameToCanvasMatrix(canvas.getHeight(), canvas.getWidth());
 
@@ -298,10 +333,8 @@ public class MultiBoxTracker {
       lastMoveTime = now;
     }
 
-    // Dibuja el círculo
     canvas.drawCircle(movingCircleX, circleY, 20.0f, centroidPaint);
 
-    // Dibuja las coordenadas como texto al lado del círculo
     borderedText.drawText(
             canvas,
             movingCircleX + 10,
@@ -311,7 +344,7 @@ public class MultiBoxTracker {
     );
   }
 
-  // Método para obtener el contorno de los objetos rastreados
+  // Obtiene los puntos de las esquinas de los objetos (para depuración)
   public List<PointF> getContour() {
     List<PointF> contourPoints = new ArrayList<>();
     for (TrackedRecognition recognition : trackedObjects) {
@@ -329,7 +362,10 @@ public class MultiBoxTracker {
     trackedObjects.clear();
   }
 
-  // Procesa y almacena los resultados de detección en trackedObjects
+  /**
+   * Procesa la lista de objetos crudos que vienen del detector.
+   * Filtra aquellos que tienen ubicación inválida y los almacena en 'trackedObjects'.
+   */
   private void processResults(final List<Recognition> results) {
     Log.i("TRACKER", "Recibidos " + results.size() + " resultados del modelo");
 
@@ -361,7 +397,6 @@ public class MultiBoxTracker {
       rectsToTrack.add(new Pair<Float, Recognition>(result.getConfidence(), result));
     }
 
-    // Limpiar para que los objetos no permanezcan si no se detecta nada.
     trackedObjects.clear();
 
     if (rectsToTrack.isEmpty()) {
@@ -388,11 +423,17 @@ public class MultiBoxTracker {
     useDynamicSpeed = isEnabled;
   }
 
-  //Encontrar el centroide de la imagen detectada NUEVO
+  /**
+   * Obtiene el centro del objeto principal rastreado.
+   * IMPORTANTE: Esta es la función clave que usa Vehicle.java para calcular el error PID.
+   * Retorna un punto (X, Y) mapeado a las coordenadas de la pantalla actual.
+   *
+   * @return Point con coordenadas X, Y o null si no hay objetos.
+   */
   public Point getCenterOfTrackedObject() {
     if (!trackedObjects.isEmpty()) {
       RectF trackedPos = new RectF(trackedObjects.get(0).location);
-      getFrameToCanvasMatrix().mapRect(trackedPos);  // aplicar transformación
+      getFrameToCanvasMatrix().mapRect(trackedPos);  // Aplicar transformación a coordenadas de pantalla
       int centerX = Math.round(trackedPos.centerX());
       int centerY = Math.round(trackedPos.centerY());
       return new Point(centerX, centerY);
@@ -400,6 +441,7 @@ public class MultiBoxTracker {
     return null;
   }
 
+  // Clase interna para almacenar datos de reconocimiento visual
   private static class TrackedRecognition {
     RectF location;
     float detectionConfidence;

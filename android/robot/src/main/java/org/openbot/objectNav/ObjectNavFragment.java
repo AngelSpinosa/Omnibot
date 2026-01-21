@@ -54,17 +54,30 @@ import android.graphics.Bitmap;
 
 import timber.log.Timber;
 
+/**
+ * Clase ObjectNavFragment
+ * -----------------------
+ * Este fragmento es el núcleo de la funcionalidad de "Seguimiento de Objetos".
+ * Hereda de CameraFragment para tener acceso directo al flujo de video.
+ *
+ * Responsabilidades:
+ * 1. Inicializar la Red Neuronal (TensorFlow Lite).
+ * 2. Procesar cada cuadro (frame) de la cámara.
+ * 3. Detectar objetos específicos (seleccionados por el usuario).
+ * 4. Calcular la posición del objeto y enviar comandos al robot (Vehicle) para seguirlo.
+ * 5. Gestionar la Interfaz de Usuario (UI) para configuración (Modelo, Confianza, Objeto).
+ */
 public class ObjectNavFragment extends CameraFragment {
   private FragmentObjectNavBinding binding;
   private Handler handler;
-  private HandlerThread handlerThread;
+  private HandlerThread handlerThread; // Hilo secundario para no bloquear la UI con la IA
 
-  private boolean computingNetwork = false;
-  public static float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
+  private boolean computingNetwork = false; // Bandera para evitar saturar la IA con demasiados cuadros
+  public static float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f; // Umbral mínimo de confianza (50%)
 
   private static final float TEXT_SIZE_DIP = 10;
 
-  private Detector detector;
+  private Detector detector; // El objeto que ejecuta la detección TFLite
 
   private boolean mirrorControl;
   private Matrix frameToCropTransform;
@@ -73,12 +86,12 @@ public class ObjectNavFragment extends CameraFragment {
   private Bitmap cropCopyBitmap;
   private Matrix cropToFrameTransform;
 
-  private MultiBoxTracker tracker;
+  private MultiBoxTracker tracker; // Clase auxiliar para dibujar los cuadros y calcular centros
 
-  private Model model;
-  private Network.Device device = Network.Device.CPU;
+  private Model model; // Modelo de IA cargado (ej. MobileNet, YOLO)
+  private Network.Device device = Network.Device.CPU; // Dispositivo de procesamiento (CPU, GPU, NNAPI)
   private int numThreads = -1;
-  private String classType = "person";
+  private String classType = "person"; // Objeto a buscar por defecto
 
   private long lastProcessingTimeMs = -1;
   private long frameNum = 0;
@@ -100,12 +113,18 @@ public class ObjectNavFragment extends CameraFragment {
     return inflateFragment(binding, inflater, container);
   }
 
+  /**
+   * Configuración inicial de la UI y Listeners.
+   * Se ejecuta cuando la vista del fragmento se ha creado.
+   */
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
 
+    // Configura el texto inicial de confianza
     binding.confidenceValue.setText((int) (MINIMUM_CONFIDENCE_TF_OD_API * 100) + "%");
 
+    // Botones para ajustar el umbral de confianza (+/- 5%)
     binding.plusConfidence.setOnClickListener(
             v -> {
               String trimConfValue = binding.confidenceValue.getText().toString().trim();
@@ -128,6 +147,7 @@ public class ObjectNavFragment extends CameraFragment {
 
     binding.controllerContainer.speedInfo.setText(getString(R.string.speedInfo, "---,---"));
 
+    // Mostrar el toggle correcto según el tipo de conexión (USB o Bluetooth)
     if (vehicle.getConnectionType().equals("USB")) {
       binding.usbToggle.setVisibility(View.VISIBLE);
       binding.bleToggle.setVisibility(View.GONE);
@@ -136,6 +156,7 @@ public class ObjectNavFragment extends CameraFragment {
       binding.usbToggle.setVisibility(View.GONE);
     }
 
+    // Configura el Spinner para seleccionar el TIPO DE OBJETO a seguir (Persona, Celular, etc.)
     classType = preferencesManager.getObjectType();
     binding.classType.setOnItemSelectedListener(
             new AdapterView.OnItemSelectedListener() {
@@ -149,18 +170,21 @@ public class ObjectNavFragment extends CameraFragment {
               public void onNothingSelected(AdapterView<?> parent) {}
             });
 
+    // Configuración de hardware de IA (Threads, Dispositivo)
     binding.deviceSpinner.setSelection(preferencesManager.getDevice());
     setNumThreads(preferencesManager.getNumThreads());
     binding.threads.setText(String.valueOf(getNumThreads()));
 
     binding.cameraToggle.setOnClickListener(v -> toggleCamera());
 
+    // Carga la lista de modelos disponibles
     List<String> models =
             getModelNames(f -> f.type.equals(Model.TYPE.DETECTOR) && f.pathType != Model.PATH_TYPE.URL);
     initModelSpinner(binding.modelSpinner, models, preferencesManager.getObjectNavModel());
 
     setAnalyserResolution(Enums.Preview.HD.getValue());
 
+    // Listener para cambio de Dispositivo (CPU/GPU)
     binding.deviceSpinner.setOnItemSelectedListener(
             new AdapterView.OnItemSelectedListener() {
               @Override
@@ -173,6 +197,7 @@ public class ObjectNavFragment extends CameraFragment {
               public void onNothingSelected(AdapterView<?> parent) {}
             });
 
+    // Control de Hilos (Threads) para la CPU
     binding.plus.setOnClickListener(
             v -> {
               String threads = binding.threads.getText().toString().trim();
@@ -191,13 +216,16 @@ public class ObjectNavFragment extends CameraFragment {
               binding.threads.setText(String.valueOf(numThreads));
             });
 
+    // Expande el panel de configuración inferior por defecto
     BottomSheetBehavior.from(binding.aiBottomSheet).setState(BottomSheetBehavior.STATE_EXPANDED);
 
+    // Observadores de estado de conexión
     mViewModel.getUsbStatus().observe(getViewLifecycleOwner(), status -> binding.usbToggle.setChecked(status));
 
     binding.usbToggle.setChecked(vehicle.isUsbConnected());
     binding.bleToggle.setChecked(vehicle.bleConnected());
 
+    // Navegación a configuraciones de conexión
     binding.usbToggle.setOnClickListener(
             v -> {
               binding.usbToggle.setChecked(vehicle.isUsbConnected());
@@ -214,6 +242,7 @@ public class ObjectNavFragment extends CameraFragment {
     setControlMode(Enums.ControlMode.getByID(preferencesManager.getControlMode()));
     setDriveMode(Enums.DriveMode.getByID(preferencesManager.getDriveMode()));
 
+    // Listeners para botones de control manual (si se usan)
     binding.controllerContainer.controlMode.setOnClickListener(
             v -> {
               Enums.ControlMode controlMode =
@@ -230,6 +259,7 @@ public class ObjectNavFragment extends CameraFragment {
                                     Enums.Direction.CYCLIC.getValue(),
                                     Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()))));
 
+    // INTERRUPTOR MAESTRO "AUTO": Activa/Desactiva el cerebro del robot
     binding.autoSwitch.setOnClickListener(v -> setNetworkEnabled(binding.autoSwitch.isChecked()));
 
     binding.dynamicSpeed.setChecked(preferencesManager.getDynamicSpeed());
@@ -245,15 +275,19 @@ public class ObjectNavFragment extends CameraFragment {
     mirrorControl = !mirrorControl;
   }
 
+  /**
+   * Prepara los bitmaps y matrices necesarios para recortar y rotar la imagen de la cámara
+   * antes de enviarla a la red neuronal.
+   */
   private void updateCropImageInfo() {
     Timber.i("%s x %s",getPreviewSize().getWidth(), getPreviewSize().getHeight());
 
     frameToCropTransform = null;
 
-    // --- CORRECCIÓN: Volvemos a la detección dinámica ---
-    // Esto calculará 90 grados en Vertical y 0 grados en Horizontal
+    // Calcula la rotación necesaria para que la imagen quede "de pie" para la IA.
+    // getScreenOrientation devuelve 0, 90, 180 o 270 según cómo sostengas el celular.
+    // Esto es crucial para que funcione en horizontal y vertical.
     sensorOrientation = 90 - ImageUtils.getScreenOrientation(requireActivity());
-    // ---------------------------------------
 
     final float textSizePx =
             TypedValue.applyDimension(
@@ -264,17 +298,24 @@ public class ObjectNavFragment extends CameraFragment {
     tracker = new MultiBoxTracker(requireContext());
     tracker.setDynamicSpeed(preferencesManager.getDynamicSpeed());
 
+    // Reinicia la red neuronal con la nueva configuración
     recreateNetwork(getModel(), getDevice(), getNumThreads());
     if (detector == null) {
       Timber.e("No network on preview!");
       return;
     }
 
+    // Configura el callback de dibujo.
+    // Aquí es donde ocurre la MAGIA DEL PANTILT.
     binding.trackingOverlay.addCallback(
             canvas -> {
+              // 1. Dibuja los cuadros, la mira y el centroide en la pantalla.
               tracker.draw(canvas);
-              // Envío de coordenadas al robot
+
+              // 2. Obtiene las coordenadas del objeto detectado desde el Tracker.
+              // 3. Envía estas coordenadas al Vehicle para que mueva el Pan-Tilt.
               vehicle.receiveCenterOfTrackedObject(tracker.getCenterOfTrackedObject(), canvas.getWidth(), canvas.getHeight());
+
               tracker.clearTrackedObjects();
             });
 
@@ -284,6 +325,9 @@ public class ObjectNavFragment extends CameraFragment {
             sensorOrientation);
   }
 
+  /**
+   * Se llama cuando cambia la configuración (modelo, dispositivo, hilos).
+   */
   protected void onInferenceConfigurationChanged() {
     computingNetwork = false;
     if (croppedBitmap == null) {
@@ -295,6 +339,9 @@ public class ObjectNavFragment extends CameraFragment {
     runInBackground(() -> recreateNetwork(model, device, numThreads));
   }
 
+  /**
+   * Crea o recrea la instancia del Detector TFLite.
+   */
   private void recreateNetwork(Model model, Network.Device device, int numThreads) {
     resetFpsUi();
     if (model == null) return;
@@ -310,9 +357,12 @@ public class ObjectNavFragment extends CameraFragment {
       detector = Detector.create(requireActivity(), model, device, numThreads);
 
       assert detector != null;
+      // Bitmap donde se copiará la imagen de la cámara redimensionada para la IA
       croppedBitmap =
               Bitmap.createBitmap(
                       detector.getImageSizeX(), detector.getImageSizeY(), Bitmap.Config.ARGB_8888);
+
+      // Matriz de transformación (Escala y Rotación)
       frameToCropTransform =
               ImageUtils.getTransformationMatrix(
                       getMaxAnalyseImageSize().getWidth(),
@@ -326,6 +376,7 @@ public class ObjectNavFragment extends CameraFragment {
       cropToFrameTransform = new Matrix();
       frameToCropTransform.invert(cropToFrameTransform);
 
+      // Actualizar UI con info del modelo
       requireActivity()
               .runOnUiThread(
                       () -> {
@@ -414,6 +465,10 @@ public class ObjectNavFragment extends CameraFragment {
     else audioPlayer.playDriveMode(voice, vehicle.getDriveMode());
   }
 
+  /**
+   * Habilita o deshabilita el modo autónomo (detección y movimiento).
+   * Bloquea los controles manuales cuando está activo.
+   */
   private void setNetworkEnabled(boolean b) {
     binding.autoSwitch.setChecked(b);
 
@@ -428,21 +483,29 @@ public class ObjectNavFragment extends CameraFragment {
     resetFpsUi();
   }
 
+  /**
+   * BUCLE PRINCIPAL DE PROCESAMIENTO (Callback de Cámara).
+   * Se ejecuta cada vez que llega una nueva imagen de la cámara.
+   */
   @SuppressLint("SuspiciousIndentation")
   @Override
   protected void processFrame(Bitmap bitmap, ImageProxy image) {
     if (tracker == null) updateCropImageInfo();
 
     ++frameNum;
+
+    // Solo procesar si el switch "Auto" está encendido
     if (binding != null && binding.autoSwitch.isChecked()) {
       if (computingNetwork) {
-        return;
+        return; // Si la IA sigue ocupada con el frame anterior, saltamos este
       }
 
       computingNetwork = true;
 
+      // Ejecutar detección en hilo secundario (Background)
       runInBackground(
               () -> {
+                // 1. Recortar y escalar imagen para la IA
                 final Canvas canvas = new Canvas(croppedBitmap);
                 if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
                   canvas.drawBitmap(
@@ -451,10 +514,11 @@ public class ObjectNavFragment extends CameraFragment {
                   canvas.drawBitmap(bitmap, frameToCropTransform, null);
                 }
 
+                // 2. Ejecutar Inferencia (Detección)
                 if (detector != null) {
                   final long startTime = SystemClock.elapsedRealtime();
                   final List<Detector.Recognition> results =
-                          detector.recognizeImage(croppedBitmap, classType);
+                          detector.recognizeImage(croppedBitmap, classType); // Busca solo el tipo seleccionado
                   lastProcessingTimeMs = SystemClock.elapsedRealtime() - startTime;
 
                   cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
@@ -466,24 +530,35 @@ public class ObjectNavFragment extends CameraFragment {
 
                   final List<Detector.Recognition> mappedRecognitions = new LinkedList<>();
 
+                  // 3. Filtrar resultados por confianza mínima y dibujarlos
                   for (final Detector.Recognition result : results) {
                     final RectF location = result.getLocation();
                     if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
                       canvas1.drawRect(location, paint);
+                      // Mapear coordenadas de vuelta al tamaño original de pantalla
                       cropToFrameTransform.mapRect(location);
                       result.setLocation(location);
                       mappedRecognitions.add(result);
                     }
                   }
 
+                  // 4. Actualizar el Tracker con los nuevos resultados
+                  // Esto disparará el callback 'trackingOverlay' definido en updateCropImageInfo
+                  // que llamará a vehicle.receiveCenterOfTrackedObject()
                   tracker.trackResults(mappedRecognitions, frameNum);
+
+                  // 5. IMPORTANTE: Forzamos velocidad de ruedas a CERO
+                  // para que el robot no persiga físicamente al objeto, solo use el Pan-Tilt.
                   vehicle.setControl(0, 0);
 
+                  // Solicitar redibujado de la capa de superposición
                   binding.trackingOverlay.postInvalidate();
                 }
 
                 computingNetwork = false;
               });
+
+      // Actualizar contador de FPS
       if (lastProcessingTimeMs > 0) {
         if (isBenchmarkMode) {
           double avgProcessingTimeMs = movingAvgProcessingTimeMs.next(lastProcessingTimeMs);
@@ -629,6 +704,7 @@ public class ObjectNavFragment extends CameraFragment {
   private void connectPhoneController() {
     phoneController.connect(requireContext());
     Enums.DriveMode oldDriveMode = currentDriveMode;
+    // Currently only dual drive mode supported
     setDriveMode(Enums.DriveMode.DUAL);
     binding.controllerContainer.driveMode.setAlpha(0.5f);
     binding.controllerContainer.driveMode.setEnabled(false);
