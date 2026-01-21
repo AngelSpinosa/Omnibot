@@ -251,8 +251,7 @@ public class ObjectNavFragment extends CameraFragment {
     frameToCropTransform = null;
 
     // --- CORRECCIÓN: Volvemos a la detección dinámica ---
-    // Esto calculará 90 grados en Vertical y 0 grados en Horizontal,
-    // permitiendo que la IA detecte objetos en ambas posiciones.
+    // Esto calculará 90 grados en Vertical y 0 grados en Horizontal
     sensorOrientation = 90 - ImageUtils.getScreenOrientation(requireActivity());
     // ---------------------------------------
 

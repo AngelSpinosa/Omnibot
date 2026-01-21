@@ -283,7 +283,6 @@ public class MultiBoxTracker {
     // Circulo central
     canvas.drawCircle(centerX, centerY, 20, crosshairPaint);
   }
-  // --------------------------------------
 
   public synchronized void draww(final Canvas canvas) {
     updateFrameToCanvasMatrix(canvas.getHeight(), canvas.getWidth());

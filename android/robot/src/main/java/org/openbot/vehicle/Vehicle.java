@@ -85,12 +85,13 @@ public class Vehicle {
   private int maxPanStep = 5;
   // ------------------------------------
 
-  // --- CLASE INTERNA PID MEJORADA (Anti-Windup) ---
+  // --- CLASE INTERNA PID MEJORADA ---
   private class PIDController {
     private float kp, ki, kd;
     private float previousError = 0;
     private float integral = 0;
     // Limite para evitar que la integral crezca infinito (Anti-Windup)
+    //reducción para limitar el movimiento
     private float maxIntegral = 500; // Reducido para evitar bloqueos largos
 
     public PIDController(float kp, float ki, float kd) {
