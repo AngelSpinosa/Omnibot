@@ -1200,21 +1200,21 @@ public abstract class CameraActivity extends AppCompatActivity
 
   protected void toggleConnection(boolean isChecked) {
     if (isChecked) {
-      if (!vehicle.isUsbConnected()) {
+      if (!vehicle.usbEstaConectada()) {
         Timber.d("No esta conectado");
-        vehicle.connectUsb();
+        vehicle.usbConectada();
       } else Timber.d("Ya conectado");
     } else {
-      vehicle.disconnectUsb();
+      vehicle.usbDesconectada();
     }
     // Deshabilitar la selección de velocidad en baudios si está conectado
-    baudRateSpinner.setEnabled(!vehicle.isUsbConnected());
-    if (vehicle.isUsbConnected()) baudRateSpinner.setAlpha(0.5f);
+    baudRateSpinner.setEnabled(!vehicle.usbEstaConectada());
+    if (vehicle.usbEstaConectada()) baudRateSpinner.setAlpha(0.5f);
     else baudRateSpinner.setAlpha(1.0f);
-    connectionSwitchCompat.setChecked(vehicle.isUsbConnected());
+    connectionSwitchCompat.setChecked(vehicle.usbEstaConectada());
 
-    if (vehicle.isUsbConnected()) {
-      connectionSwitchCompat.setText(vehicle.getUsbConnection().getProductName());
+    if (vehicle.usbEstaConectada()) {
+      connectionSwitchCompat.setText(vehicle.getConexionUsb().getProductName());
     } else {
       connectionSwitchCompat.setText(R.string.no_device);
       // Tried to connect but failed

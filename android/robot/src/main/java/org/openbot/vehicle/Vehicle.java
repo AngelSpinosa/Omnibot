@@ -3,9 +3,6 @@ package org.openbot.vehicle;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Point;
-import android.graphics.PointF;
-import android.icu.text.SymbolTable;
-import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
@@ -17,15 +14,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.Handler;
 
 import org.openbot.env.GameController;
 import org.openbot.env.SensorReading;
 import org.openbot.main.CommonRecyclerViewAdapter;
 import org.openbot.main.ScanDeviceAdapter;
 import org.openbot.utils.Enums;
-
-import timber.log.Timber;
 
 /**
  * Clase Vehicle
@@ -57,8 +51,8 @@ public class Vehicle {
     private float lowBatteryVoltage = 9.0f;
     private float maxBatteryVoltage = 12.6f;
 
-    private UsbConnection usbConnection; // Objeto para comunicación USB
-    protected boolean usbConnected;
+    private UsbConnection conexionUsb; // Objeto para comunicación USB
+    protected boolean usbConectada;
     private final Context context;
     private final int baudRate;
 
@@ -86,14 +80,14 @@ public class Vehicle {
     // Posición lógica actual de los servos (en grados acumulados)
     private int currentPan = 0;
     private int currentTilt = 0;
-    private long lastPanTiltTime = 0;
+    private long ultimoPanTiltTiempo = 0;
     private static final int PANTILT_INTERVAL_MS = 40; // Frecuencia de actualización (40ms = 25Hz)
 
     // CONTROLADORES PID (Proporcional-Integral-Derivativo)
     // Optimizados para movimientos suaves y estables.
     // Kp=0.025 (Suave), Ki=0.005 (Baja acumulación), Kd=0.1 (Freno fuerte)
-    private PIDController panPid = new PIDController(0.025f, 0.005f, 0.1f);
-    private PIDController tiltPid = new PIDController(0.025f, 0.005f, 0.1f);
+    private PIDControlador panPid = new PIDControlador(0.025f, 0.005f, 0.1f);
+    private PIDControlador tiltPid = new PIDControlador(0.025f, 0.005f, 0.1f);
 
     // Limitador de Velocidad (Slew Rate Limiter)
     // Máximo cambio de grados por ciclo para evitar sacudidas bruscas.
@@ -102,19 +96,19 @@ public class Vehicle {
     // --------------------------------------------------------
 
     /**
-     * CLASE INTERNA PIDController
+     * CLASE INTERNA PIDControlador
      * ---------------------------
      * Implementa el algoritmo de control PID con protección "Anti-Windup".
      * Calcula cuánto debe moverse el motor basándose en el error (distancia al objetivo).
      */
-    private class PIDController {
+    private class PIDControlador {
         private float kp, ki, kd;
-        private float previousError = 0;
+        private float errorPrevio = 0;
         private float integral = 0;
         // Limite para evitar que la integral crezca infinito si el robot se atora
-        private float maxIntegral = 200;
+        private float integralMaxima = 200;
 
-        public PIDController(float kp, float ki, float kd) {
+        public PIDControlador(float kp, float ki, float kd) {
             this.kp = kp;
             this.ki = ki;
             this.kd = kd;
@@ -130,22 +124,22 @@ public class Vehicle {
             // Término Integral (Acumula errores pasados para corregir desviación constante)
             integral += error;
             // Clamping (Anti-Windup)
-            if (integral > maxIntegral) integral = maxIntegral;
-            else if (integral < -maxIntegral) integral = -maxIntegral;
+            if (integral > integralMaxima) integral = integralMaxima;
+            else if (integral < -integralMaxima) integral = -integralMaxima;
 
             // Término Derivativo (Predice el futuro para frenar oscilaciones)
-            float derivative = error - previousError;
+            float derivative = error - errorPrevio;
 
             // Salida final = P + I + D
             float output = (kp * error) + (ki * integral) + (kd * derivative);
 
-            previousError = error;
+            errorPrevio = error;
             return output;
         }
 
         // Reinicia la memoria del PID (útil al reconectar o cambiar de modo)
         public void reset() {
-            previousError = 0;
+            errorPrevio = 0;
             integral = 0;
         }
     }
@@ -463,8 +457,8 @@ public class Vehicle {
         }
     }
 
-    public UsbConnection getUsbConnection() {
-        return usbConnection;
+    public UsbConnection getConexionUsb() {
+        return conexionUsb;
     }
 
     /**
@@ -472,40 +466,40 @@ public class Vehicle {
      * Crea la instancia de UsbConnection y llama a startUsbConnection().
      * También inicia el heartbeat y resetea el Pan-Tilt a cero.
      */
-    public void connectUsb() {
-        if (usbConnection == null) usbConnection = new UsbConnection(context, baudRate);
-        usbConnected = usbConnection.startUsbConnection();
-        if (usbConnected) {
+    public void usbConectada() {
+        if (conexionUsb == null) conexionUsb = new UsbConnection(context, baudRate);
+        usbConectada = conexionUsb.startUsbConnection();
+        if (usbConectada) {
             if (heartbeatTimer == null) {
                 startHeartbeat();
             }
-            resetPanTilt();
+            reiniciaPanTilt();
         }
     }
 
     /**
      * Cierra la conexión USB y detiene el robot.
      */
-    public void disconnectUsb() {
-        if (usbConnection != null) {
+    public void usbDesconectada() {
+        if (conexionUsb != null) {
             stopBot();
             stopHeartbeat();
-            usbConnection.stopUsbConnection();
-            usbConnection = null;
-            usbConnected = false;
+            conexionUsb.stopUsbConnection();
+            conexionUsb = null;
+            usbConectada = false;
         }
     }
 
-    public boolean isUsbConnected() {
-        return usbConnected;
+    public boolean usbEstaConectada() {
+        return usbConectada;
     }
 
     /**
      * Método de bajo nivel para enviar bytes crudos al dispositivo conectado (USB o BLE).
      */
-    private void sendBytesToDevice(byte[] message) {
-        if (getConnectionType().equals("USB") && usbConnection != null) {
-            usbConnection.send(message);
+    private void mandarBytesAlDispositivo(byte[] message) {
+        if (getConnectionType().equals("USB") && conexionUsb != null) {
+            conexionUsb.send(message);
         } else if(getConnectionType().equals("Bluetooth")
                 && bluetoothManager != null
                 && bluetoothManager.isBleConnected()) {
@@ -531,7 +525,7 @@ public class Vehicle {
         buffer.putInt(coordX);
         buffer.putInt(coordY);
         byte[] byteArray = buffer.array();
-        sendBytesToDevice(byteArray);
+        mandarBytesAlDispositivo(byteArray);
     }
 
     public void sendConteoPrueba() {
@@ -591,13 +585,13 @@ public class Vehicle {
      * Resetea la cámara a la posición central (0,0) lógica y física.
      * También limpia la memoria integral de los PIDs.
      */
-    public void resetPanTilt() {
+    public void reiniciaPanTilt() {
         currentPan = 0;
         currentTilt = 0;
         panPid.reset();
         tiltPid.reset();
         String jsonCommand = String.format(Locale.US, "{\"T\":133,\"X\":%d,\"Y\":%d,\"SPD\":0,\"ACC\":0}\n", 0, 0);
-        sendBytesToDevice(jsonCommand.getBytes(StandardCharsets.UTF_8));
+        mandarBytesAlDispositivo(jsonCommand.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -649,25 +643,25 @@ public class Vehicle {
         currentTilt = Math.max(-30, Math.min(90, currentTilt));
 
         // Enviar comando final
-        sendPanTilt(currentPan, currentTilt);
+        mandarPanTilt(currentPan, currentTilt);
     }
 
     /**
      * Construye el mensaje JSON y lo envía al puerto serial.
      * Incluye control de flujo (Throttling) para no saturar el buffer (máx cada 40ms).
      */
-    public void sendPanTilt(int pan, int tilt) {
-        long currentTime = System.currentTimeMillis();
+    public void mandarPanTilt(int pan, int tilt) {
+        long TiempoActual = System.currentTimeMillis();
 
-        if (currentTime - lastPanTiltTime < PANTILT_INTERVAL_MS) {
+        if (TiempoActual - ultimoPanTiltTiempo < PANTILT_INTERVAL_MS) {
             return;
         }
 
-        lastPanTiltTime = currentTime;
+        ultimoPanTiltTiempo = TiempoActual;
 
         // Formato JSON: {"T":133,"X":pan,"Y":tilt,"SPD":0,"ACC":0}
         String jsonCommand = String.format(Locale.US, "{\"T\":133,\"X\":%d,\"Y\":%d,\"SPD\":0,\"ACC\":0}\n", pan, tilt);
-        sendBytesToDevice(jsonCommand.getBytes(StandardCharsets.UTF_8));
+        mandarBytesAlDispositivo(jsonCommand.getBytes(StandardCharsets.UTF_8));
     }
 
     // ---------------------------------------------------------

@@ -135,12 +135,12 @@ public class AutopilotFragment extends CameraFragment {
                 .getUsbStatus()
                 .observe(getViewLifecycleOwner(), status -> binding.usbToggle.setChecked(status));
 
-        binding.usbToggle.setChecked(vehicle.isUsbConnected());
+        binding.usbToggle.setChecked(vehicle.usbEstaConectada());
         binding.bleToggle.setChecked(vehicle.bleConnected());
 
         binding.usbToggle.setOnClickListener(
                 v -> {
-                    binding.usbToggle.setChecked(vehicle.isUsbConnected());
+                    binding.usbToggle.setChecked(vehicle.usbEstaConectada());
                     Navigation.findNavController(requireView()).navigate(R.id.open_usb_fragment);
                 });
 

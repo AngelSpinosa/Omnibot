@@ -25,9 +25,9 @@ public class UsbFragment extends PreferenceFragmentCompat {
     connection = findPreference("connection");
     if (connection != null) {
       connection.setTitle("No Device");
-      if (vehicle != null && vehicle.isUsbConnected()) {
+      if (vehicle != null && vehicle.usbEstaConectada()) {
         connection.setChecked(true);
-        connection.setTitle(vehicle.getUsbConnection().getProductName());
+        connection.setTitle(vehicle.getConexionUsb().getProductName());
       } else {
         connection.setTitle("No Device");
         connection.setChecked(false);
@@ -38,9 +38,9 @@ public class UsbFragment extends PreferenceFragmentCompat {
             Timber.i(String.valueOf(connection.isChecked()));
             if (vehicle != null) {
               if (connection.isChecked()) {
-                vehicle.connectUsb();
-                if (vehicle.isUsbConnected())
-                  connection.setTitle(vehicle.getUsbConnection().getProductName());
+                vehicle.usbConectada();
+                if (vehicle.usbEstaConectada())
+                  connection.setTitle(vehicle.getConexionUsb().getProductName());
                 else {
                   connection.setTitle("No Device");
                   connection.setChecked(false);
@@ -51,10 +51,10 @@ public class UsbFragment extends PreferenceFragmentCompat {
                       .show();
                 }
               } else {
-                vehicle.disconnectUsb();
+                vehicle.usbDesconectada();
                 connection.setTitle("No Device");
               }
-              mViewModel.setUsbStatus(vehicle.isUsbConnected());
+              mViewModel.setUsbStatus(vehicle.usbEstaConectada());
             }
             return true;
           });

@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
     // PreferenceManager.getDefaultSharedPreferences(this);
     //      int baudRate = Integer.parseInt(sharedPreferences.getString("baud_rate", "115200"));
     //      vehicle = new Vehicle(this, baudRate);
-    //      vehicle.connectUsb();
+    //      vehicle.usbConectada();
     viewModel.setVehicle(vehicle);
     //    }
 
@@ -89,9 +89,9 @@ public class MainActivity extends AppCompatActivity {
             if (action != null) {
               switch (action) {
                 case UsbManager.ACTION_USB_DEVICE_ATTACHED:
-                  if (!vehicle.isUsbConnected()) {
-                    vehicle.connectUsb();
-                    viewModel.setUsbStatus(vehicle.isUsbConnected());
+                  if (!vehicle.usbEstaConectada()) {
+                    vehicle.usbConectada();
+                    viewModel.setUsbStatus(vehicle.usbEstaConectada());
                   }
                   Timber.i("USB device attached");
                   break;
@@ -102,10 +102,10 @@ public class MainActivity extends AppCompatActivity {
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                       if (usbDevice != null) {
                         // método de llamada para configurar la comunicación del dispositivo
-                        if (!vehicle.isUsbConnected()) {
-                          vehicle.connectUsb();
+                        if (!vehicle.usbEstaConectada()) {
+                          vehicle.usbConectada();
                         }
-                        viewModel.setUsbStatus(vehicle.isUsbConnected());
+                        viewModel.setUsbStatus(vehicle.usbEstaConectada());
                         Timber.i("USB device attached");
                       }
                     }
@@ -113,8 +113,8 @@ public class MainActivity extends AppCompatActivity {
 
                   break;
                 case UsbManager.ACTION_USB_DEVICE_DETACHED:
-                  vehicle.disconnectUsb();
-                  viewModel.setUsbStatus(vehicle.isUsbConnected());
+                  vehicle.usbDesconectada();
+                  viewModel.setUsbStatus(vehicle.usbEstaConectada());
                   Timber.i("USB device detached");
                   break;
                 case DEVICE_ACTION_DATA_RECEIVED:
@@ -258,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
 
     unregisterReceiver(localBroadcastReceiver);
     if (localBroadcastReceiver != null) localBroadcastReceiver = null;
-    if (!isChangingConfigurations()) vehicle.disconnectUsb();
+    if (!isChangingConfigurations()) vehicle.usbDesconectada();
     super.onDestroy();
   }
 

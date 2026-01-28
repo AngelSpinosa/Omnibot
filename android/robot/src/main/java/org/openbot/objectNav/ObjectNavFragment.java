@@ -6,8 +6,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Point;
-import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -47,10 +45,8 @@ import org.openbot.utils.Enums;
 import org.openbot.utils.MovingAverage;
 import org.openbot.utils.PermissionUtils;
 import org.openbot.vehicle.Control;
-import org.openbot.vehicle.Vehicle;
-import android.content.pm.ActivityInfo;
 
-import android.graphics.Bitmap;
+import android.content.pm.ActivityInfo;
 
 import timber.log.Timber;
 
@@ -222,13 +218,13 @@ public class ObjectNavFragment extends CameraFragment {
     // Observadores de estado de conexión
     mViewModel.getUsbStatus().observe(getViewLifecycleOwner(), status -> binding.usbToggle.setChecked(status));
 
-    binding.usbToggle.setChecked(vehicle.isUsbConnected());
+    binding.usbToggle.setChecked(vehicle.usbEstaConectada());
     binding.bleToggle.setChecked(vehicle.bleConnected());
 
     // Navegación a configuraciones de conexión
     binding.usbToggle.setOnClickListener(
             v -> {
-              binding.usbToggle.setChecked(vehicle.isUsbConnected());
+              binding.usbToggle.setChecked(vehicle.usbEstaConectada());
               Navigation.findNavController(requireView()).navigate(R.id.open_usb_fragment);
             });
 
