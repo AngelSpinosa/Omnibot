@@ -86,7 +86,9 @@
         <service
             android:name=".logging.SensorService"
             android:enabled="true"
-            android:launchMode="singleTask" />
+            android:launchMode="singleTask"
+            android:foregroundServiceType="specialUse" /> <!-- O "location", "camera", etc. según lo que haga -->
+            />
 
         <service android:name="net.majorkernelpanic.streaming.rtsp.RtspServer" />
 

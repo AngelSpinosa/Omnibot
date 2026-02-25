@@ -17,7 +17,7 @@ apply plugin: 'de.undercouch.download'
 apply plugin: 'com.google.firebase.crashlytics'
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 34
     defaultConfig {
         applicationId "org.openbot"
         minSdkVersion 21

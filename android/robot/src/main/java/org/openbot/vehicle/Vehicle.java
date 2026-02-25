@@ -1,12 +1,11 @@
 package org.openbot.vehicle;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Point;
-
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
-import com.ficat.easyble.BleDevice;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -21,23 +20,13 @@ import org.openbot.main.CommonRecyclerViewAdapter;
 import org.openbot.main.ScanDeviceAdapter;
 import org.openbot.utils.Enums;
 
-/**
- * Clase Vehicle
- * -------------
- * Representa la entidad lógica del robot OpenBot.
- * * Responsabilidades:
- * 1. Gestionar el estado del robot (batería, sensores, velocidad).
- * 2. Controlar la comunicación con el hardware (USB o Bluetooth).
- * 3. Implementar la lógica de control de movimiento (Drive Mode, Gamepad).
- * 4. [NUEVO] Gestionar el sistema Pan-Tilt con control PID para seguimiento de objetos.
- */
 public class Vehicle {
 
     private final Noise noise = new Noise(1000, 2000, 5000);
     private boolean noiseEnabled = false;
 
     private int indicator = 0;
-    private int speedMultiplier = 192; // Multiplicador de velocidad (128, 192, 255)
+    private int speedMultiplier = 192;
     private Control control = new Control(0, 0);
 
     // Lecturas de sensores
@@ -51,12 +40,12 @@ public class Vehicle {
     private float lowBatteryVoltage = 9.0f;
     private float maxBatteryVoltage = 12.6f;
 
-    private UsbConnection conexionUsb; // Objeto para comunicación USB
+    private UsbConnection conexionUsb;
     protected boolean usbConectada;
     private final Context context;
     private final int baudRate;
 
-    // Características del vehículo (detectadas automáticamente)
+    // Características del vehículo
     private String vehicleType = "";
     private boolean hasVoltageDivider = false;
     private boolean hasIndicators = false;
@@ -71,41 +60,30 @@ public class Vehicle {
 
     private Timer serialMessageTimer;
 
+    // --- BLUETOOTH NATIVO ---
     private BluetoothManager bluetoothManager;
+    private BluetoothDevice connectedDevice;
+
     SharedPreferences sharedPreferences;
     public String connectionType;
 
-    // --- SISTEMA PAN-TILT (Variables de Estado y Control) ---
-
-    // Posición lógica actual de los servos (en grados acumulados)
+    // --- SISTEMA PAN-TILT ---
     private int currentPan = 0;
     private int currentTilt = 0;
     private long ultimoPanTiltTiempo = 0;
-    private static final int PANTILT_INTERVAL_MS = 40; // Frecuencia de actualización (40ms = 25Hz)
+    private static final int PANTILT_INTERVAL_MS = 40;
 
-    // CONTROLADORES PID (Proporcional-Integral-Derivativo)
-    // Optimizados para movimientos suaves y estables.
-    // Kp=0.025 (Suave), Ki=0.005 (Baja acumulación), Kd=0.1 (Freno fuerte)
+    // PID Controllers
     private PIDControlador panPid = new PIDControlador(0.025f, 0.005f, 0.1f);
     private PIDControlador tiltPid = new PIDControlador(0.025f, 0.005f, 0.1f);
 
-    // Limitador de Velocidad (Slew Rate Limiter)
-    // Máximo cambio de grados por ciclo para evitar sacudidas bruscas.
     private int maxPanStep = 3;
     private int maxTiltStep = 3;
-    // --------------------------------------------------------
 
-    /**
-     * CLASE INTERNA PIDControlador
-     * ---------------------------
-     * Implementa el algoritmo de control PID con protección "Anti-Windup".
-     * Calcula cuánto debe moverse el motor basándose en el error (distancia al objetivo).
-     */
     private class PIDControlador {
         private float kp, ki, kd;
         private float errorPrevio = 0;
         private float integral = 0;
-        // Limite para evitar que la integral crezca infinito si el robot se atora
         private float integralMaxima = 200;
 
         public PIDControlador(float kp, float ki, float kd) {
@@ -115,195 +93,22 @@ public class Vehicle {
         }
 
         public float calculate(float setpoint, float actual) {
-            // Error = Posición Actual - Objetivo
             float error = actual - setpoint;
-
-            // Zona muerta interna: Ignorar errores minúsculos para no acumular integral
             if (Math.abs(error) < 10) error = 0;
-
-            // Término Integral (Acumula errores pasados para corregir desviación constante)
             integral += error;
-            // Clamping (Anti-Windup)
             if (integral > integralMaxima) integral = integralMaxima;
             else if (integral < -integralMaxima) integral = -integralMaxima;
-
-            // Término Derivativo (Predice el futuro para frenar oscilaciones)
             float derivative = error - errorPrevio;
-
-            // Salida final = P + I + D
             float output = (kp * error) + (ki * integral) + (kd * derivative);
-
             errorPrevio = error;
             return output;
         }
 
-        // Reinicia la memoria del PID (útil al reconectar o cambiar de modo)
         public void reset() {
             errorPrevio = 0;
             integral = 0;
         }
     }
-    // ---------------------------------------------------------
-
-    public float getMinMotorVoltage() {
-        return minMotorVoltage;
-    }
-
-    public void setMinMotorVoltage(float minMotorVoltage) {
-        this.minMotorVoltage = minMotorVoltage;
-    }
-
-    public float getLowBatteryVoltage() {
-        return lowBatteryVoltage;
-    }
-
-    public void setLowBatteryVoltage(float lowBatteryVoltage) {
-        this.lowBatteryVoltage = lowBatteryVoltage;
-    }
-
-    public float getMaxBatteryVoltage() {
-        return maxBatteryVoltage;
-    }
-
-    public void setMaxBatteryVoltage(float maxBatteryVoltage) {
-        this.maxBatteryVoltage = maxBatteryVoltage;
-    }
-
-    public boolean isReady() {
-        return isReady;
-    }
-
-    public void setReady(boolean ready) {
-        isReady = ready;
-    }
-
-    public boolean isHasVoltageDivider() {
-        return hasVoltageDivider;
-    }
-
-    public void setHasVoltageDivider(boolean hasVoltageDivider) {
-        this.hasVoltageDivider = hasVoltageDivider;
-    }
-
-    public boolean isHasIndicators() {
-        return hasIndicators;
-    }
-
-    public void setHasIndicators(boolean hasIndicators) {
-        this.hasIndicators = hasIndicators;
-    }
-
-    public boolean isHasSonar() {
-        return hasSonar;
-    }
-
-    public void setHasSonar(boolean hasSonar) {
-        this.hasSonar = hasSonar;
-    }
-
-    public boolean isHasBumpSensor() {
-        return hasBumpSensor;
-    }
-
-    public void setHasBumpSensor(boolean hasBumpSensor) {
-        this.hasBumpSensor = hasBumpSensor;
-    }
-
-    public boolean isHasWheelOdometryFront() {
-        return hasWheelOdometryFront;
-    }
-
-    public void setHasWheelOdometryFront(boolean hasWheelOdometryFront) {
-        this.hasWheelOdometryFront = hasWheelOdometryFront;
-    }
-
-    public boolean isHasWheelOdometryBack() {
-        return hasWheelOdometryBack;
-    }
-
-    public void setHasWheelOdometryBack(boolean hasWheelOdometryBack) {
-        this.hasWheelOdometryBack = hasWheelOdometryBack;
-    }
-
-    public boolean isHasLedsFront() {
-        return hasLedsFront;
-    }
-
-    public void setHasLedsFront(boolean hasLedsFront) {
-        this.hasLedsFront = hasLedsFront;
-    }
-
-    public boolean isHasLedsBack() {
-        return hasLedsBack;
-    }
-
-    public void setHasLedsBack(boolean hasLedsBack) {
-        this.hasLedsBack = hasLedsBack;
-    }
-
-    public boolean isHasLedsStatus() {
-        return hasLedsStatus;
-    }
-
-    public void setHasLedsStatus(boolean hasLedsStatus) {
-        this.hasLedsStatus = hasLedsStatus;
-    }
-
-    public String getVehicleType() {
-        return vehicleType;
-    }
-
-    public void setVehicleType(String vehicleType) {
-        this.vehicleType = vehicleType;
-    }
-
-    public void requestVehicleConfig() {
-        //sendStringToDevice(String.format(Locale.US, "f\n"));
-    }
-
-    /**
-     * Procesa la cadena de configuración recibida del microcontrolador.
-     * Activa/desactiva las banderas de características (sensores, leds, etc.).
-     */
-    public void processVehicleConfig(String message) {
-        setVehicleType(message.split(":")[0]);
-
-        if (message.contains(":v:")) {
-            setHasVoltageDivider(true);
-            setVoltageFrequency(250);
-        }
-        if (message.contains(":i:")) {
-            setHasIndicators(true);
-        }
-        if (message.contains(":s:")) {
-            setHasSonar(true);
-            setSonarFrequency(100);
-        }
-        if (message.contains(":b:")) {
-            setHasBumpSensor(true);
-        }
-        if (message.contains(":wf:")) {
-            setHasWheelOdometryFront(true);
-            setWheelOdometryFrequency(500);
-        }
-        if (message.contains(":wb:")) {
-            setHasWheelOdometryBack(true);
-            setWheelOdometryFrequency(500);
-        }
-        if (message.contains(":lf:")) {
-            setHasLedsFront(true);
-        }
-        if (message.contains(":lb:")) {
-            setHasLedsBack(true);
-        }
-        if (message.contains(":ls:")) {
-            setHasLedsStatus(true);
-        }
-    }
-
-    protected Enums.DriveMode driveMode = Enums.DriveMode.GAME;
-    private final GameController gameController;
-    private Timer heartbeatTimer;
 
     public Vehicle(Context context, int baudRate) {
         this.context = context;
@@ -311,38 +116,72 @@ public class Vehicle {
         gameController = new GameController(driveMode);
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
         connectionType = getConnectionPreferences("connection_type", "USB");
+        initBle();
     }
 
-    public float getBatteryVoltage() {
-        return batteryVoltage.getReading();
+    // --- GETTERS Y SETTERS BÁSICOS (Mantenidos) ---
+    // (Omitidos para brevedad, son los mismos de siempre)
+    public float getMinMotorVoltage() { return minMotorVoltage; }
+    public void setMinMotorVoltage(float minMotorVoltage) { this.minMotorVoltage = minMotorVoltage; }
+    public float getLowBatteryVoltage() { return lowBatteryVoltage; }
+    public void setLowBatteryVoltage(float lowBatteryVoltage) { this.lowBatteryVoltage = lowBatteryVoltage; }
+    public float getMaxBatteryVoltage() { return maxBatteryVoltage; }
+    public void setMaxBatteryVoltage(float maxBatteryVoltage) { this.maxBatteryVoltage = maxBatteryVoltage; }
+    public boolean isReady() { return isReady; }
+    public void setReady(boolean ready) { isReady = ready; }
+    public boolean isHasVoltageDivider() { return hasVoltageDivider; }
+    public void setHasVoltageDivider(boolean hasVoltageDivider) { this.hasVoltageDivider = hasVoltageDivider; }
+    public boolean isHasIndicators() { return hasIndicators; }
+    public void setHasIndicators(boolean hasIndicators) { this.hasIndicators = hasIndicators; }
+    public boolean isHasSonar() { return hasSonar; }
+    public void setHasSonar(boolean hasSonar) { this.hasSonar = hasSonar; }
+    public boolean isHasBumpSensor() { return hasBumpSensor; }
+    public void setHasBumpSensor(boolean hasBumpSensor) { this.hasBumpSensor = hasBumpSensor; }
+    public boolean isHasWheelOdometryFront() { return hasWheelOdometryFront; }
+    public void setHasWheelOdometryFront(boolean hasWheelOdometryFront) { this.hasWheelOdometryFront = hasWheelOdometryFront; }
+    public boolean isHasWheelOdometryBack() { return hasWheelOdometryBack; }
+    public void setHasWheelOdometryBack(boolean hasWheelOdometryBack) { this.hasWheelOdometryBack = hasWheelOdometryBack; }
+    public boolean isHasLedsFront() { return hasLedsFront; }
+    public void setHasLedsFront(boolean hasLedsFront) { this.hasLedsFront = hasLedsFront; }
+    public boolean isHasLedsBack() { return hasLedsBack; }
+    public void setHasLedsBack(boolean hasLedsBack) { this.hasLedsBack = hasLedsBack; }
+    public boolean isHasLedsStatus() { return hasLedsStatus; }
+    public void setHasLedsStatus(boolean hasLedsStatus) { this.hasLedsStatus = hasLedsStatus; }
+    public String getVehicleType() { return vehicleType; }
+    public void setVehicleType(String vehicleType) { this.vehicleType = vehicleType; }
+
+    // --- LÓGICA DE VEHÍCULO ---
+
+    public void requestVehicleConfig() { }
+
+    public void processVehicleConfig(String message) {
+        setVehicleType(message.split(":")[0]);
+        if (message.contains(":v:")) { setHasVoltageDivider(true); setVoltageFrequency(250); }
+        if (message.contains(":i:")) { setHasIndicators(true); }
+        if (message.contains(":s:")) { setHasSonar(true); setSonarFrequency(100); }
+        if (message.contains(":b:")) { setHasBumpSensor(true); }
+        if (message.contains(":wf:")) { setHasWheelOdometryFront(true); setWheelOdometryFrequency(500); }
+        if (message.contains(":wb:")) { setHasWheelOdometryBack(true); setWheelOdometryFrequency(500); }
+        if (message.contains(":lf:")) { setHasLedsFront(true); }
+        if (message.contains(":lb:")) { setHasLedsBack(true); }
+        if (message.contains(":ls:")) { setHasLedsStatus(true); }
     }
+
+    protected Enums.DriveMode driveMode = Enums.DriveMode.GAME;
+    private final GameController gameController;
+    private Timer heartbeatTimer;
+
+    public float getBatteryVoltage() { return batteryVoltage.getReading(); }
 
     public int getBatteryPercentage() {
-        return (int)
-                ((batteryVoltage.getReading() - lowBatteryVoltage)
-                        * 100
-                        / (maxBatteryVoltage - lowBatteryVoltage));
+        return (int) ((batteryVoltage.getReading() - lowBatteryVoltage) * 100 / (maxBatteryVoltage - lowBatteryVoltage));
     }
 
-    public void setBatteryVoltage(float batteryVoltage) {
-        this.batteryVoltage.setReading(batteryVoltage);
-    }
-
-    public float getLeftWheelRpm() {
-        return leftWheelRpm.getReading();
-    }
-
-    public void setLeftWheelRpm(float leftWheelRpm) {
-        this.leftWheelRpm.setReading(leftWheelRpm);
-    }
-
-    public float getRightWheelRpm() {
-        return rightWheelRpm.getReading();
-    }
-
-    public void setRightWheelRpm(float rightWheelRpm) {
-        this.rightWheelRpm.setReading(rightWheelRpm);
-    }
+    public void setBatteryVoltage(float batteryVoltage) { this.batteryVoltage.setReading(batteryVoltage); }
+    public float getLeftWheelRpm() { return leftWheelRpm.getReading(); }
+    public void setLeftWheelRpm(float leftWheelRpm) { this.leftWheelRpm.setReading(leftWheelRpm); }
+    public float getRightWheelRpm() { return rightWheelRpm.getReading(); }
+    public void setRightWheelRpm(float rightWheelRpm) { this.rightWheelRpm.setReading(rightWheelRpm); }
 
     public float getRotation() {
         float rotation = (getLeftSpeed() - getRightSpeed()) * 180 / (getLeftSpeed() + getRightSpeed());
@@ -352,7 +191,7 @@ public class Vehicle {
 
     public int getSpeedPercent() {
         float throttle = (getLeftSpeed() + getRightSpeed()) / 2;
-        return Math.abs((int) (throttle * 100 / 255)); // 255 is the max speed
+        return Math.abs((int) (throttle * 100 / 255));
     }
 
     public String getDriveGear() {
@@ -362,58 +201,23 @@ public class Vehicle {
         return "P";
     }
 
-    public float getSonarReading() {
-        return sonarReading.getReading();
-    }
-
-    public void setSonarReading(float sonarReading) {
-        this.sonarReading.setReading(sonarReading);
-    }
-
-    public Control getControl() {
-        return control;
-    }
-
-    public void setControl(Control control) {
-        this.control = control;
-        //sendControl();
-    }
-
-    public void setControl(float left, float right) {
-        this.control = new Control(left, right);
-        //sendControl();
-    }
+    public float getSonarReading() { return sonarReading.getReading(); }
+    public void setSonarReading(float sonarReading) { this.sonarReading.setReading(sonarReading); }
+    public Control getControl() { return control; }
+    public void setControl(Control control) { this.control = control; }
+    public void setControl(float left, float right) { this.control = new Control(left, right); }
 
     private Timer noiseTimer;
 
-    public void toggleNoise() {
-        if (noiseEnabled) stopNoise();
-        else startNoise();
-    }
-
-    public boolean isNoiseEnabled() {
-        return noiseEnabled;
-    }
-
-    public void setDriveMode(Enums.DriveMode driveMode) {
-        this.driveMode = driveMode;
-        gameController.setDriveMode(driveMode);
-    }
-
-    public Enums.DriveMode getDriveMode() {
-        return driveMode;
-    }
-
-    public GameController getGameController() {
-        return gameController;
-    }
+    public void toggleNoise() { if (noiseEnabled) stopNoise(); else startNoise(); }
+    public boolean isNoiseEnabled() { return noiseEnabled; }
+    public void setDriveMode(Enums.DriveMode driveMode) { this.driveMode = driveMode; gameController.setDriveMode(driveMode); }
+    public Enums.DriveMode getDriveMode() { return driveMode; }
+    public GameController getGameController() { return gameController; }
 
     private class NoiseTask extends TimerTask {
         @Override
-        public void run() {
-            noise.update();
-            //sendControl();
-        }
+        public void run() { noise.update(); }
     }
 
     public void startNoise() {
@@ -421,65 +225,31 @@ public class Vehicle {
         NoiseTask noiseTask = new NoiseTask();
         noiseTimer.schedule(noiseTask, 0, 50);
         noiseEnabled = true;
-        //sendControl();
     }
 
     public void stopNoise() {
         noiseEnabled = false;
         noiseTimer.cancel();
-        //sendControl();
     }
 
-    public int getSpeedMultiplier() {
-        return speedMultiplier;
-    }
+    public int getSpeedMultiplier() { return speedMultiplier; }
+    public void setSpeedMultiplier(int speedMultiplier) { this.speedMultiplier = speedMultiplier; }
+    public int getIndicator() { return indicator; }
+    public void setIndicator(int indicator) { this.indicator = indicator; }
 
-    public void setSpeedMultiplier(int speedMultiplier) {
-        this.speedMultiplier = speedMultiplier;
-    }
+    public UsbConnection getConexionUsb() { return conexionUsb; }
 
-    public int getIndicator() {
-        return indicator;
-    }
+    // --- CONEXIÓN USB ---
 
-    public void setIndicator(int indicator) {
-        this.indicator = indicator;
-        switch (indicator) {
-            case -1:
-                //sendStringToDevice(String.format(Locale.US, "i1,0\n"));
-                break;
-            case 0:
-                //sendStringToDevice(String.format(Locale.US, "i0,0\n"));
-                break;
-            case 1:
-                //sendStringToDevice(String.format(Locale.US, "i0,1\n"));
-                break;
-        }
-    }
-
-    public UsbConnection getConexionUsb() {
-        return conexionUsb;
-    }
-
-    /**
-     * Inicia la conexión USB.
-     * Crea la instancia de UsbConnection y llama a startUsbConnection().
-     * También inicia el heartbeat y resetea el Pan-Tilt a cero.
-     */
     public void usbConectada() {
         if (conexionUsb == null) conexionUsb = new UsbConnection(context, baudRate);
         usbConectada = conexionUsb.startUsbConnection();
         if (usbConectada) {
-            if (heartbeatTimer == null) {
-                startHeartbeat();
-            }
+            if (heartbeatTimer == null) startHeartbeat();
             reiniciaPanTilt();
         }
     }
 
-    /**
-     * Cierra la conexión USB y detiene el robot.
-     */
     public void usbDesconectada() {
         if (conexionUsb != null) {
             stopBot();
@@ -490,35 +260,23 @@ public class Vehicle {
         }
     }
 
-    public boolean usbEstaConectada() {
-        return usbConectada;
-    }
+    public boolean usbEstaConectada() { return usbConectada; }
 
-    /**
-     * Método de bajo nivel para enviar bytes crudos al dispositivo conectado (USB o BLE).
-     */
+    // --- MÉTODO HÍBRIDO DE ENVÍO ---
     private void mandarBytesAlDispositivo(byte[] message) {
         if (getConnectionType().equals("USB") && conexionUsb != null) {
             conexionUsb.send(message);
         } else if(getConnectionType().equals("Bluetooth")
                 && bluetoothManager != null
-                && bluetoothManager.isBleConnected()) {
+                && bluetoothManager.isConnected()) {
+            bluetoothManager.write(message);
         }
     }
 
-    public float getLeftSpeed() {
-        return control.getLeft() * speedMultiplier;
-    }
+    public float getLeftSpeed() { return control.getLeft() * speedMultiplier; }
+    public float getRightSpeed() { return control.getRight() * speedMultiplier; }
 
-    public float getRightSpeed() {
-        return control.getRight() * speedMultiplier;
-    }
-
-    public void sendLightIntensity(float frontPercent, float backPercent) {
-        int front = (int) (frontPercent * 255.f);
-        int back = (int) (backPercent * 255.f);
-        //sendStringToDevice(String.format(Locale.US, "l%d,%d\n", front, back));
-    }
+    public void sendLightIntensity(float frontPercent, float backPercent) { }
 
     public void sendCoordinatesToRobot(int coordX, int coordY) {
         ByteBuffer buffer = ByteBuffer.allocate(8);
@@ -528,63 +286,23 @@ public class Vehicle {
         mandarBytesAlDispositivo(byteArray);
     }
 
-    public void sendConteoPrueba() {
-        for (int i = 1; i <= 180; i++) {
-            String conteo = String.valueOf(i);
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+    public void sendConteoPrueba() { }
 
-    /**
-     * Recibe el centro del objeto detectado desde el Tracker y delega al sistema Pan-Tilt.
-     */
     public void receiveCenterOfTrackedObject(Point centerPoint, int frameWidth, int frameHeight) {
         if (centerPoint != null) {
             trackObject(centerPoint, frameWidth, frameHeight);
         }
     }
 
-    public void sendControl() {
-        int left = (int) (getLeftSpeed());
-        int right = (int) (getRightSpeed());
-        if (noiseEnabled && noise.getDirection() < 0) {
-            left = (int) ((control.getLeft() - noise.getValue()) * speedMultiplier);
-        }
-        if (noiseEnabled && noise.getDirection() > 0) {
-            right = (int) ((control.getRight() - noise.getValue()) * speedMultiplier);
-        }
-        //sendStringToDevice(String.format(Locale.US, "c%d,%d\n", left, right));
-    }
+    public void sendControl() { }
+    protected void sendMessageFrank(String message) { }
+    protected void sendHeartbeat(int timeout_ms) { }
+    protected void setSonarFrequency(int interval_ms) { }
+    protected void setVoltageFrequency(int interval_ms) { }
+    protected void setWheelOdometryFrequency(int interval_ms) { }
 
-    protected void sendMessageFrank(String message) {
-        //sendStringToDevice("f");
-    }
+    // --- LÓGICA PAN-TILT ---
 
-    protected void sendHeartbeat(int timeout_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "h%d\n", timeout_ms));
-    }
-    protected void setSonarFrequency(int interval_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "s%d\n", interval_ms));
-    }
-
-    protected void setVoltageFrequency(int interval_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "v%d\n", interval_ms));
-    }
-
-    protected void setWheelOdometryFrequency(int interval_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "w%d\n", interval_ms));
-    }
-
-    // --- LÓGICA PRINCIPAL DE SEGUIMIENTO (PAN-TILT) ---
-
-    /**
-     * Resetea la cámara a la posición central (0,0) lógica y física.
-     * También limpia la memoria integral de los PIDs.
-     */
     public void reiniciaPanTilt() {
         currentPan = 0;
         currentTilt = 0;
@@ -594,86 +312,48 @@ public class Vehicle {
         mandarBytesAlDispositivo(jsonCommand.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Calcula y aplica el movimiento necesario para centrar el objeto en la pantalla.
-     * Utiliza controladores PID para suavizar el movimiento y evitar vibraciones.
-     *
-     * @param centerPoint Coordenadas X,Y del objeto detectado.
-     * @param frameWidth Ancho del canvas/pantalla.
-     * @param frameHeight Alto del canvas/pantalla.
-     */
     public void trackObject(Point centerPoint, int frameWidth, int frameHeight) {
         if (centerPoint == null) return;
-
-        // El objetivo (Setpoint) es el centro de la pantalla
         int centerX = frameWidth / 2;
         int centerY = frameHeight / 2;
 
-        // --- EJE X (PAN) ---
-        // Calculamos ajuste con PID
         float pidOutputX = panPid.calculate(centerX, centerPoint.x);
         int adjustmentX = Math.round(pidOutputX);
 
-        // Limitador de Velocidad (Evita movimientos bruscos > 3 grados)
         if (adjustmentX > maxPanStep) adjustmentX = maxPanStep;
         else if (adjustmentX < -maxPanStep) adjustmentX = -maxPanStep;
 
-        // Zona Muerta (60px): Si el objeto está cerca del centro, no movemos nada para evitar vibración
         if (Math.abs(centerPoint.x - centerX) > 60) {
             currentPan += adjustmentX;
         }
 
-        // --- EJE Y (TILT) ---
         float pidOutputY = tiltPid.calculate(centerY, centerPoint.y);
         int adjustmentY = Math.round(pidOutputY);
 
-        // Limitador de Velocidad TILT
         if (adjustmentY > maxTiltStep) adjustmentY = maxTiltStep;
         else if (adjustmentY < -maxTiltStep) adjustmentY = -maxTiltStep;
 
-        // Zona Muerta TILT (60px)
         if (Math.abs(centerPoint.y - centerY) > 60) {
-            // Signo Negativo (-=): Porque en coordenadas Android Y crece hacia abajo,
-            // pero en el robot Tilt positivo es hacia arriba.
             currentTilt -= adjustmentY;
         }
 
-        // Límites de Seguridad (Clamping mecánico)
         currentPan = Math.max(-180, Math.min(180, currentPan));
         currentTilt = Math.max(-30, Math.min(90, currentTilt));
 
-        // Enviar comando final
         mandarPanTilt(currentPan, currentTilt);
     }
 
-    /**
-     * Construye el mensaje JSON y lo envía al puerto serial.
-     * Incluye control de flujo (Throttling) para no saturar el buffer (máx cada 40ms).
-     */
     public void mandarPanTilt(int pan, int tilt) {
         long TiempoActual = System.currentTimeMillis();
-
-        if (TiempoActual - ultimoPanTiltTiempo < PANTILT_INTERVAL_MS) {
-            return;
-        }
-
+        if (TiempoActual - ultimoPanTiltTiempo < PANTILT_INTERVAL_MS) { return; }
         ultimoPanTiltTiempo = TiempoActual;
-
-        // Formato JSON: {"T":133,"X":pan,"Y":tilt,"SPD":0,"ACC":0}
         String jsonCommand = String.format(Locale.US, "{\"T\":133,\"X\":%d,\"Y\":%d,\"SPD\":0,\"ACC\":0}\n", pan, tilt);
         mandarBytesAlDispositivo(jsonCommand.getBytes(StandardCharsets.UTF_8));
     }
 
-    // ---------------------------------------------------------
-
-
     private class HeartBeatTask extends TimerTask {
-
         @Override
-        public void run() {
-            //sendHeartbeat(750);
-            // sendMessageFrank("f");
-        }
+        public void run() { }
     }
 
     public void startHeartbeat() {
@@ -695,6 +375,8 @@ public class Vehicle {
         setControl(control);
     }
 
+    // --- GESTIÓN BLUETOOTH (Corregida) ---
+
     public ScanDeviceAdapter getBleAdapter() {
         return bluetoothManager.adapter;
     }
@@ -707,31 +389,40 @@ public class Vehicle {
     }
 
     public void startScan() {
-        bluetoothManager.startScan();
+        // AQUÍ YA NO NECESITAMOS LA ANOTACIÓN PORQUE BLUETOOTHMANAGER LO MANEJA
+        if(bluetoothManager != null) bluetoothManager.startScan();
     }
 
     public void stopScan() {
-        bluetoothManager.stopScan();
+        if(bluetoothManager != null) bluetoothManager.stopScan();
     }
 
-    public List<BleDevice> getDeviceList() {
+    public List<BluetoothDevice> getDeviceList() {
         return bluetoothManager.deviceList;
     }
 
-    public void setBleDevice(BleDevice device) {
-        bluetoothManager.bleDevice = device;
+    public void setBleDevice(BluetoothDevice device) {
+        this.connectedDevice = device;
     }
 
-    public BleDevice getBleDevice() {
-        return bluetoothManager.bleDevice;
+    public BluetoothDevice getBleDevice() {
+        return this.connectedDevice;
     }
 
-    public void toggleConnection(int position, BleDevice device) {
-        bluetoothManager.toggleConnection(position, device);
+    public void toggleConnection(int position, BluetoothDevice device) {
+        if (bluetoothManager.isConnected()) {
+            bluetoothManager.disconnect();
+            connectedDevice = null;
+        } else {
+            bluetoothManager.connect(device);
+            connectedDevice = device;
+        }
     }
 
     public void initBle() {
-        bluetoothManager = new BluetoothManager(context);
+        if (bluetoothManager == null) {
+            bluetoothManager = new BluetoothManager(context);
+        }
     }
 
     private void sendStringToBle(String message) {
@@ -739,7 +430,7 @@ public class Vehicle {
     }
 
     public boolean bleConnected() {
-        return bluetoothManager.isBleConnected();
+        return bluetoothManager != null && bluetoothManager.isConnected();
     }
 
     private void setConnectionPreferences(String name, String value) {

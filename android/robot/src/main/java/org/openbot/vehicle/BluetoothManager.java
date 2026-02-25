@@ -1,256 +1,260 @@
 package org.openbot.vehicle;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.widget.Toast;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.util.Log;
+import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import com.ficat.easyble.BleDevice;
-import com.ficat.easyble.BleManager;
-import com.ficat.easyble.Logger;
-import com.ficat.easyble.gatt.bean.CharacteristicInfo;
-import com.ficat.easyble.gatt.bean.ServiceInfo;
-import com.ficat.easyble.gatt.callback.BleConnectCallback;
-import com.ficat.easyble.gatt.callback.BleMtuCallback;
-import com.ficat.easyble.gatt.callback.BleNotifyCallback;
-import com.ficat.easyble.gatt.callback.BleWriteCallback;
-import com.ficat.easyble.scan.BleScanCallback;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.openbot.main.ScanDeviceAdapter;
 import org.openbot.utils.Constants;
 
 public class BluetoothManager {
-  private BleManager manager;
-  private CharacteristicInfo notifyCharacteristic;
-  private CharacteristicInfo writeCharacteristic;
-  private ServiceInfo writeServiceInfo;
-  private ServiceInfo notifyServiceInfo;
-  public List<BleDevice> deviceList = new ArrayList<>();
-  public List<String> notifySuccessUuids = new ArrayList<>();
-  public BleDevice bleDevice;
-  private Context context;
-  public ScanDeviceAdapter adapter;
-  private int indexValue;
-  public String readValue;
-  private final LocalBroadcastManager localBroadcastManager;
-  private String serviceUUID = "61653dc3-4021-4d1e-ba83-8b4eec61d613";
-  UUID[] uuidArray = new UUID[] {UUID.fromString(serviceUUID)};
+    private static final String TAG = "BluetoothManager";
+    // UUID Estándar para puerto serial (SPP)
+    private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
-  public BluetoothManager(Context context) {
-    this.context = context;
-    initBleManager();
-    localBroadcastManager = LocalBroadcastManager.getInstance(this.context);
-  }
+    private final BluetoothAdapter bluetoothAdapter;
+    private final Context context;
+    public ScanDeviceAdapter adapter;
+    public List<BluetoothDevice> deviceList = new ArrayList<>();
 
-  public void initBleManager() {
-    // check if this android device supports ble
-    if (!BleManager.supportBle(this.context)) {
-      return;
+    private ConnectThread connectThread;
+    private ConnectedThread connectedThread;
+    private int state;
+
+    public static final int STATE_NONE = 0;
+    public static final int STATE_LISTEN = 1;
+    public static final int STATE_CONNECTING = 2;
+    public static final int STATE_CONNECTED = 3;
+
+    private final LocalBroadcastManager localBroadcastManager;
+
+    public BluetoothManager(Context context) {
+        this.context = context;
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        state = STATE_NONE;
+        localBroadcastManager = LocalBroadcastManager.getInstance(context);
+        registerReceivers();
     }
 
-    BleManager.ScanOptions scanOptions =
-        BleManager.ScanOptions.newInstance()
-            .scanPeriod(4000)
-            .scanDeviceName(null)
-            .scanServiceUuids(uuidArray);
+    private void registerReceivers() {
+        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        IntentFilter filterFinished = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
 
-    BleManager.ConnectOptions connectOptions =
-        BleManager.ConnectOptions.newInstance().connectTimeout(12000);
-
-    manager =
-        BleManager.getInstance()
-            .setScanOptions(scanOptions)
-            .setConnectionOptions(connectOptions)
-            .setLog(true, "Bluetooth_Connection")
-            .init(this.context);
-  }
-
-  public void startScan() {
-    manager.startScan(
-        new BleScanCallback() {
-          @Override
-          public void onLeScan(BleDevice device, int rssi, byte[] scanRecord) {
-            for (BleDevice d : deviceList) {
-              if (device.address.equals(d.address)) {
-                return;
-              }
-            }
-            deviceList.add(device);
-            adapter.notifyDataSetChanged();
-          }
-
-          @Override
-          public void onStart(boolean startScanSuccess, String info) {
-            if (bleDevice != null && bleDevice.connecting) {
+        // CORRECCIÓN CRÍTICA PARA ANDROID 14/15 (Crash Loop Fix)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // CAMBIO: Usar RECEIVER_NOT_EXPORTED para mayor seguridad
+                context.registerReceiver(scanReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                context.registerReceiver(scanReceiver, filterFinished, Context.RECEIVER_NOT_EXPORTED);
             } else {
-              deviceList.clear();
+                context.registerReceiver(scanReceiver, filter);
+                context.registerReceiver(scanReceiver, filterFinished);
             }
-            if (isBleConnected() && !deviceList.contains(bleDevice)) {
-              deviceList.add(bleDevice);
+        } catch (Exception e) {
+            Log.e(TAG, "Error registrando receivers: " + e.getMessage());
+        }
+    }
+
+    // Suprimimos el error "MissingPermission" porque ya lo chequeamos con hasPermission()
+    @SuppressLint("MissingPermission")
+    public void startScan() {
+        if (bluetoothAdapter == null) return;
+
+        deviceList.clear();
+        if (adapter != null) adapter.notifyDataSetChanged();
+
+        try {
+            // Verificación manual de seguridad
+            if (!hasPermission()) {
+                Log.e(TAG, "No hay permisos para escanear");
+                return;
             }
-          }
 
-          @Override
-          public void onFinish() {
-            adapter.notifyDataSetChanged();
-          }
-        });
-  }
-
-  public void stopScan() {
-    manager.stopScan();
-  }
-
-  public void toggleConnection(int position, BleDevice device) {
-    if (bleDevice.connecting) return;
-    indexValue = position;
-    if (isBleConnected()) {
-      if (bleDevice.address.equals(device.address)) {
-        BleManager.getInstance().disconnect(bleDevice.address);
-        bleDevice = null;
-      }
-    } else {
-      BleManager.getInstance().connect(bleDevice.address, connectCallback);
+            if (bluetoothAdapter.isDiscovering()) {
+                bluetoothAdapter.cancelDiscovery();
+            }
+            bluetoothAdapter.startDiscovery();
+        } catch (Exception e) {
+            Log.e(TAG, "Error al iniciar escaneo: " + e.getMessage());
+        }
     }
-  }
 
-  public BleConnectCallback connectCallback =
-      new BleConnectCallback() {
-        @Override
-        public void onStart(boolean startConnectSuccess, String info, BleDevice device) {
-          bleDevice = device;
-          deviceList.remove(indexValue);
-          deviceList.add(indexValue, device);
-          adapter.notifyDataSetChanged();
+    @SuppressLint("MissingPermission")
+    public void stopScan() {
+        if (bluetoothAdapter != null) {
+            try {
+                if (!hasPermission()) return;
+                bluetoothAdapter.cancelDiscovery();
+            } catch (Exception e) {
+                Log.e(TAG, "Error al detener escaneo: " + e.getMessage());
+            }
         }
-
-        @Override
-        public void onConnected(BleDevice device) {
-          bleDevice = device;
-          deviceList.remove(indexValue);
-          deviceList.add(indexValue, device);
-          adapter.notifyDataSetChanged();
-          addDeviceInfoDataAndUpdate();
-          Logger.i("Successfully connected: " + " " + device);
-        }
-
-        @Override
-        public void onDisconnected(String info, int status, BleDevice device) {
-          bleDevice = null;
-          adapter.notifyDataSetChanged();
-          Logger.i("disconnected!");
-        }
-
-        @Override
-        public void onFailure(int failCode, String info, BleDevice device) {
-          Logger.e("connect fail:" + info);
-          bleDevice = null;
-          deviceList.remove(indexValue);
-          deviceList.add(indexValue, device);
-          Toast.makeText(context, "Connection fail: " + info, Toast.LENGTH_LONG).show();
-          adapter.notifyDataSetChanged();
-        }
-      };
-
-  public void addDeviceInfoDataAndUpdate() {
-    if (bleDevice == null) return;
-    Map<ServiceInfo, List<CharacteristicInfo>> deviceInfo =
-        BleManager.getInstance().getDeviceServices(bleDevice.address);
-    if (deviceInfo == null) {
-      return;
     }
-    for (Map.Entry<ServiceInfo, List<CharacteristicInfo>> e : deviceInfo.entrySet()) {
-      for (CharacteristicInfo characteristicInfo : e.getValue()) {
-        if (characteristicInfo.notify) {
-          notifyCharacteristic = characteristicInfo;
-          notifyServiceInfo = e.getKey();
-          if (isBleConnected())
-            // Set the MTU size to 64 bytes
-            BleManager.getInstance().setMtu(bleDevice, 64, mtuCallback);
+
+    private boolean hasPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
         }
-        if (characteristicInfo.writable) {
-          writeServiceInfo = e.getKey();
-          writeCharacteristic = characteristicInfo;
-        }
-      }
     }
-  }
 
-  public void write(String msg) {
-    if (isBleConnected()) {
-      BleManager.getInstance()
-          .write(
-              bleDevice,
-              writeServiceInfo.uuid,
-              writeCharacteristic.uuid,
-              msg.getBytes(UTF_8),
-              writeCallback);
+    private final BroadcastReceiver scanReceiver = new BroadcastReceiver() {
+        @SuppressLint("MissingPermission") // Suprimir error al obtener nombre
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                if (device != null && !deviceList.contains(device)) {
+                    // Filtramos dispositivos sin nombre para limpiar la lista
+                    if(device.getName() != null) {
+                        deviceList.add(device);
+                        if (adapter != null) adapter.notifyDataSetChanged();
+                    }
+                }
+            }
+        }
+    };
+
+    public synchronized void connect(BluetoothDevice device) {
+        if (state == STATE_CONNECTING) {
+            if (connectThread != null) { connectThread.cancel(); connectThread = null; }
+        }
+        if (connectedThread != null) { connectedThread.cancel(); connectedThread = null; }
+
+        connectThread = new ConnectThread(device);
+        connectThread.start();
+        setState(STATE_CONNECTING);
     }
-  }
 
-  public BleMtuCallback mtuCallback =
-      new BleMtuCallback() {
-        @Override
-        public void onMtuChanged(int mtu, BleDevice device) {
-          BleManager.getInstance()
-              .notify(bleDevice, notifyServiceInfo.uuid, notifyCharacteristic.uuid, notifyCallback);
+    private synchronized void connected(BluetoothSocket socket, BluetoothDevice device) {
+        if (connectThread != null) { connectThread.cancel(); connectThread = null; }
+        if (connectedThread != null) { connectedThread.cancel(); connectedThread = null; }
+
+        connectedThread = new ConnectedThread(socket);
+        connectedThread.start();
+        setState(STATE_CONNECTED);
+    }
+
+    public void write(byte[] out) {
+        ConnectedThread r;
+        synchronized (this) {
+            if (state != STATE_CONNECTED) return;
+            r = connectedThread;
+        }
+        r.write(out);
+    }
+
+    public void write(String message) { write(message.getBytes()); }
+
+    public synchronized int getState() { return state; }
+    private synchronized void setState(int state) { this.state = state; }
+    public boolean isConnected() { return state == STATE_CONNECTED; }
+
+    public void disconnect() {
+        stopScan();
+        if (connectThread != null) { connectThread.cancel(); connectThread = null; }
+        if (connectedThread != null) { connectedThread.cancel(); connectedThread = null; }
+        setState(STATE_NONE);
+    }
+
+    private class ConnectThread extends Thread {
+        private final BluetoothSocket mmSocket;
+        private final BluetoothDevice mmDevice;
+
+        @SuppressLint("MissingPermission") // Suprimimos porque connect() requiere permisos que ya pedimos
+        public ConnectThread(BluetoothDevice device) {
+            BluetoothSocket tmp = null;
+            mmDevice = device;
+            try {
+                tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
+            } catch (IOException e) { Log.e(TAG, "Socket create() failed", e); }
+            mmSocket = tmp;
         }
 
-        @Override
-        public void onFailure(int failCode, String info, BleDevice device) {
-          Logger.e("mtu fail:" + info + " " + failCode);
-        }
-      };
-  public BleWriteCallback writeCallback =
-      new BleWriteCallback() {
-        @Override
-        public void onWriteSuccess(byte[] data, BleDevice device) {
-          String value = new String(data, StandardCharsets.UTF_8);
-          Logger.i("write success:" + value);
-        }
+        @SuppressLint("MissingPermission")
+        public void run() {
+            try {
+                if (bluetoothAdapter.isDiscovering()) bluetoothAdapter.cancelDiscovery();
+            } catch (Exception e) {}
 
-        @Override
-        public void onFailure(int failCode, String info, BleDevice device) {
-          Logger.e("write fail:" + info + " " + failCode);
-        }
-      };
-
-  public BleNotifyCallback notifyCallback =
-      new BleNotifyCallback() {
-        @Override
-        public void onCharacteristicChanged(byte[] data, BleDevice device) {
-          readValue = new String(data);
-          onSerialDataReceived(readValue);
+            try {
+                mmSocket.connect();
+            } catch (IOException connectException) {
+                try { mmSocket.close(); } catch (IOException closeException) { }
+                connectionFailed();
+                return;
+            }
+            synchronized (BluetoothManager.this) { connectThread = null; }
+            connected(mmSocket, mmDevice);
         }
 
-        @Override
-        public void onNotifySuccess(String notifySuccessUuid, BleDevice device) {
-          if (!notifySuccessUuids.contains(notifySuccessUuid)) {
-            notifySuccessUuids.add(notifySuccessUuid);
-          }
+        public void cancel() {
+            try { mmSocket.close(); } catch (IOException e) { }
+        }
+    }
+
+    private class ConnectedThread extends Thread {
+        private final BluetoothSocket mmSocket;
+        private final InputStream mmInStream;
+        private final OutputStream mmOutStream;
+
+        public ConnectedThread(BluetoothSocket socket) {
+            mmSocket = socket;
+            InputStream tmpIn = null;
+            OutputStream tmpOut = null;
+            try {
+                tmpIn = socket.getInputStream();
+                tmpOut = socket.getOutputStream();
+            } catch (IOException e) { }
+            mmInStream = tmpIn;
+            mmOutStream = tmpOut;
         }
 
-        @Override
-        public void onFailure(int failCode, String info, BleDevice device) {
-          Logger.e("notify fail:" + info);
+        public void run() {
+            byte[] buffer = new byte[1024];
+            int bytes;
+            while (state == STATE_CONNECTED) {
+                try {
+                    bytes = mmInStream.read(buffer);
+                    String readMessage = new String(buffer, 0, bytes);
+                    localBroadcastManager.sendBroadcast(
+                            new Intent(Constants.DEVICE_ACTION_DATA_RECEIVED)
+                                    .putExtra("from", "usb")
+                                    .putExtra("data", readMessage));
+                } catch (IOException e) {
+                    connectionLost();
+                    break;
+                }
+            }
         }
-      };
 
-  public boolean isBleConnected() {
-    return bleDevice != null && bleDevice.connected;
-  }
+        public void write(byte[] buffer) {
+            try { mmOutStream.write(buffer); } catch (IOException e) { }
+        }
 
-  private void onSerialDataReceived(String data) {
-    // Add whatever you want here
-    Logger.i("Serial data received from BLE: " + data);
-    localBroadcastManager.sendBroadcast(
-        new Intent(Constants.DEVICE_ACTION_DATA_RECEIVED)
-            .putExtra("from", "usb")
-            .putExtra("data", data));
-  }
+        public void cancel() {
+            try { mmSocket.close(); } catch (IOException e) { }
+        }
+    }
+
+    private void connectionFailed() { setState(STATE_NONE); }
+    private void connectionLost() { setState(STATE_NONE); }
 }
