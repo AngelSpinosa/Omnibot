@@ -143,14 +143,23 @@ public class ObjectNavFragment extends CameraFragment {
 
     binding.controllerContainer.speedInfo.setText(getString(R.string.speedInfo, "---,---"));
 
-    // Mostrar el toggle correcto según el tipo de conexión (USB o Bluetooth)
-    if (vehicle.getConnectionType().equals("USB")) {
+    // --- NUEVA LÓGICA DE VISIBILIDAD DE ICONOS (WIFI / USB / BT) ---
+    String connectionType = vehicle.getConnectionType();
+
+    if (connectionType.equals("USB")) {
       binding.usbToggle.setVisibility(View.VISIBLE);
       binding.bleToggle.setVisibility(View.GONE);
-    } else if (vehicle.getConnectionType().equals("Bluetooth")) {
+      binding.wifiToggle.setVisibility(View.GONE);
+    } else if (connectionType.equals("Bluetooth")) {
       binding.bleToggle.setVisibility(View.VISIBLE);
       binding.usbToggle.setVisibility(View.GONE);
+      binding.wifiToggle.setVisibility(View.GONE);
+    } else if (connectionType.equals("WIFI")) {
+      binding.wifiToggle.setVisibility(View.VISIBLE);
+      binding.bleToggle.setVisibility(View.GONE);
+      binding.usbToggle.setVisibility(View.GONE);
     }
+    // ---------------------------------------------------------------
 
     // Configura el Spinner para seleccionar el TIPO DE OBJETO a seguir (Persona, Celular, etc.)
     classType = preferencesManager.getObjectType();
@@ -218,8 +227,10 @@ public class ObjectNavFragment extends CameraFragment {
     // Observadores de estado de conexión
     mViewModel.getUsbStatus().observe(getViewLifecycleOwner(), status -> binding.usbToggle.setChecked(status));
 
+    // Estado inicial de los toggles (CORREGIDO CON MÉTODOS EN ESPAÑOL DE VEHICLE)
     binding.usbToggle.setChecked(vehicle.usbEstaConectada());
     binding.bleToggle.setChecked(vehicle.bleConnected());
+    binding.wifiToggle.setChecked(vehicle.wifiEstaConectada());
 
     // Navegación a configuraciones de conexión
     binding.usbToggle.setOnClickListener(
@@ -233,6 +244,18 @@ public class ObjectNavFragment extends CameraFragment {
               binding.bleToggle.setChecked(vehicle.bleConnected());
               Navigation.findNavController(requireView()).navigate(R.id.open_bluetooth_fragment);
             });
+
+    // --- LISTENER DEL BOTÓN WIFI ---
+    binding.wifiToggle.setOnClickListener(
+            v -> {
+              if(binding.wifiToggle.isChecked()){
+                vehicle.conectarWifi();
+              } else {
+                vehicle.desconectarWifi();
+              }
+              binding.wifiToggle.setChecked(vehicle.wifiEstaConectada());
+            });
+    // -------------------------------
 
     setSpeedMode(Enums.SpeedMode.getByID(preferencesManager.getSpeedMode()));
     setControlMode(Enums.ControlMode.getByID(preferencesManager.getControlMode()));
@@ -539,8 +562,6 @@ public class ObjectNavFragment extends CameraFragment {
                   }
 
                   // 4. Actualizar el Tracker con los nuevos resultados
-                  // Esto disparará el callback 'trackingOverlay' definido en updateCropImageInfo
-                  // que llamará a vehicle.receiveCenterOfTrackedObject()
                   tracker.trackResults(mappedRecognitions, frameNum);
 
                   // 5. IMPORTANTE: Forzamos velocidad de ruedas a CERO

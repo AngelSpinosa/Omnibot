@@ -161,6 +161,7 @@
     <string-array name="connection_type">
         <item>Bluetooth</item>
         <item>USB</item>
+        <item>WIFI</item>
     </string-array>
     <!-- TODO: Remove or change this placeholder text -->
     <string-array name="speed_modes">

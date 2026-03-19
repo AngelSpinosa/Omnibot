@@ -27,9 +27,9 @@ import org.openbot.utils.Enums;
  * Representa la entidad lógica del robot OpenBot.
  * * Responsabilidades:
  * 1. Gestionar el estado del robot (batería, sensores, velocidad).
- * 2. Controlar la comunicación con el hardware (USB o Bluetooth).
+ * 2. Controlar la comunicación con el hardware (USB, Bluetooth o WIFI).
  * 3. Implementar la lógica de control de movimiento (Drive Mode, Gamepad).
- * 4. [NUEVO] Gestionar el sistema Pan-Tilt con control PID para seguimiento de objetos.
+ * 4. Gestionar el sistema Pan-Tilt con control PID para seguimiento de objetos.
  */
 public class Vehicle {
 
@@ -51,8 +51,17 @@ public class Vehicle {
     private float lowBatteryVoltage = 9.0f;
     private float maxBatteryVoltage = 12.6f;
 
+    // --- CONEXIÓN USB ---
     private UsbConnection conexionUsb; // Objeto para comunicación USB
     protected boolean usbConectada;
+
+    // --- NUEVO: CONEXIÓN WIFI ---
+    private WifiConnection conexionWifi;
+    protected boolean wifiConectada;
+    private static final String WIFI_IP = "192.168.4.1"; // <-- Asegúrate de que esta sea la IP de tu placa ESP32
+    private static final int WIFI_PORT = 12345; // <-- Puerto UDP configurado en tu placa
+    // ----------------------------
+
     private final Context context;
     private final int baudRate;
 
@@ -376,12 +385,10 @@ public class Vehicle {
 
     public void setControl(Control control) {
         this.control = control;
-        //sendControl();
     }
 
     public void setControl(float left, float right) {
         this.control = new Control(left, right);
-        //sendControl();
     }
 
     private Timer noiseTimer;
@@ -412,7 +419,6 @@ public class Vehicle {
         @Override
         public void run() {
             noise.update();
-            //sendControl();
         }
     }
 
@@ -421,13 +427,11 @@ public class Vehicle {
         NoiseTask noiseTask = new NoiseTask();
         noiseTimer.schedule(noiseTask, 0, 50);
         noiseEnabled = true;
-        //sendControl();
     }
 
     public void stopNoise() {
         noiseEnabled = false;
         noiseTimer.cancel();
-        //sendControl();
     }
 
     public int getSpeedMultiplier() {
@@ -457,15 +461,11 @@ public class Vehicle {
         }
     }
 
+    // --- MÉTODOS DE CONEXIÓN USB ---
     public UsbConnection getConexionUsb() {
         return conexionUsb;
     }
 
-    /**
-     * Inicia la conexión USB.
-     * Crea la instancia de UsbConnection y llama a startUsbConnection().
-     * También inicia el heartbeat y resetea el Pan-Tilt a cero.
-     */
     public void usbConectada() {
         if (conexionUsb == null) conexionUsb = new UsbConnection(context, baudRate);
         usbConectada = conexionUsb.startUsbConnection();
@@ -477,9 +477,6 @@ public class Vehicle {
         }
     }
 
-    /**
-     * Cierra la conexión USB y detiene el robot.
-     */
     public void usbDesconectada() {
         if (conexionUsb != null) {
             stopBot();
@@ -494,15 +491,53 @@ public class Vehicle {
         return usbConectada;
     }
 
+    // --- NUEVO: MÉTODOS DE CONEXIÓN WIFI ---
+    public WifiConnection getConexionWifi() {
+        return conexionWifi;
+    }
+
+    public void conectarWifi() {
+        if (conexionWifi == null) conexionWifi = new WifiConnection(context);
+        wifiConectada = conexionWifi.startWifiConnection(WIFI_IP, WIFI_PORT);
+        if (wifiConectada) {
+            if (heartbeatTimer == null) {
+                startHeartbeat();
+            }
+            reiniciaPanTilt(); // Sincroniza hardware a 0,0 al conectar Wifi
+        }
+    }
+
+    public void desconectarWifi() {
+        if (conexionWifi != null) {
+            stopBot();
+            stopHeartbeat();
+            conexionWifi.stopWifiConnection();
+            conexionWifi = null;
+            wifiConectada = false;
+        }
+    }
+
+    public boolean wifiEstaConectada() {
+        return wifiConectada;
+    }
+    // ---------------------------------------
+
     /**
-     * Método de bajo nivel para enviar bytes crudos al dispositivo conectado (USB o BLE).
+     * ENRUTADOR PRINCIPAL DE DATOS:
+     * Envía bytes crudos al dispositivo conectado evaluando la preferencia actual (USB, WIFI, Bluetooth).
      */
     private void mandarBytesAlDispositivo(byte[] message) {
-        if (getConnectionType().equals("USB") && conexionUsb != null) {
+        String tipoConexion = getConnectionType();
+
+        if (tipoConexion.equals("USB") && conexionUsb != null) {
             conexionUsb.send(message);
-        } else if(getConnectionType().equals("Bluetooth")
+        } else if (tipoConexion.equals("WIFI") && conexionWifi != null) {
+            // ENVÍO ENRUTADO A WIFI
+            conexionWifi.send(message);
+        } else if(tipoConexion.equals("Bluetooth")
                 && bluetoothManager != null
                 && bluetoothManager.isBleConnected()) {
+            // bluetoothManager.write(message); o equivalente si se usara BLE
         }
     }
 
@@ -517,7 +552,6 @@ public class Vehicle {
     public void sendLightIntensity(float frontPercent, float backPercent) {
         int front = (int) (frontPercent * 255.f);
         int back = (int) (backPercent * 255.f);
-        //sendStringToDevice(String.format(Locale.US, "l%d,%d\n", front, back));
     }
 
     public void sendCoordinatesToRobot(int coordX, int coordY) {
@@ -557,26 +591,18 @@ public class Vehicle {
         if (noiseEnabled && noise.getDirection() > 0) {
             right = (int) ((control.getRight() - noise.getValue()) * speedMultiplier);
         }
-        //sendStringToDevice(String.format(Locale.US, "c%d,%d\n", left, right));
     }
 
     protected void sendMessageFrank(String message) {
-        //sendStringToDevice("f");
     }
 
     protected void sendHeartbeat(int timeout_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "h%d\n", timeout_ms));
     }
     protected void setSonarFrequency(int interval_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "s%d\n", interval_ms));
     }
-
     protected void setVoltageFrequency(int interval_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "v%d\n", interval_ms));
     }
-
     protected void setWheelOdometryFrequency(int interval_ms) {
-        //sendStringToDevice(String.format(Locale.getDefault(), "w%d\n", interval_ms));
     }
 
     // --- LÓGICA PRINCIPAL DE SEGUIMIENTO (PAN-TILT) ---
@@ -614,7 +640,7 @@ public class Vehicle {
         float pidOutputX = panPid.calculate(centerX, centerPoint.x);
         int adjustmentX = Math.round(pidOutputX);
 
-        // Limitador de Velocidad (Evita movimientos bruscos > 3 grados)
+        // Limitador de Velocidad (Evita movimientos bruscos > maxPanStep)
         if (adjustmentX > maxPanStep) adjustmentX = maxPanStep;
         else if (adjustmentX < -maxPanStep) adjustmentX = -maxPanStep;
 
@@ -647,7 +673,7 @@ public class Vehicle {
     }
 
     /**
-     * Construye el mensaje JSON y lo envía al puerto serial.
+     * Construye el mensaje JSON y lo envía mediante el enrutador general.
      * Incluye control de flujo (Throttling) para no saturar el buffer (máx cada 40ms).
      */
     public void mandarPanTilt(int pan, int tilt) {
@@ -668,11 +694,8 @@ public class Vehicle {
 
 
     private class HeartBeatTask extends TimerTask {
-
         @Override
         public void run() {
-            //sendHeartbeat(750);
-            // sendMessageFrank("f");
         }
     }
 
