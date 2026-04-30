@@ -14,7 +14,6 @@ import java.util.concurrent.Executors;
  * Clase WifiConnection
  * --------------------
  * Gestiona la conexión UDP hacia el microcontrolador (ESP32).
- * Usa UDP porque es el estándar para telemetría y control en tiempo real (baja latencia).
  */
 public class WifiConnection {
     private DatagramSocket socket;
@@ -24,8 +23,7 @@ public class WifiConnection {
     private final Context context;
     private final LocalBroadcastManager localBroadcastManager;
 
-    // Usamos un ExecutorService para enviar datos en un hilo de fondo
-    // sin bloquear la interfaz de usuario ni la cámara.
+    // Hilo secundario para no bloquear la interfaz gráfica (Main Thread)
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public WifiConnection(Context context) {
@@ -33,19 +31,21 @@ public class WifiConnection {
         this.localBroadcastManager = LocalBroadcastManager.getInstance(context);
     }
 
-    public boolean startWifiConnection(String ip, int port) {
-        try {
-            this.port = port;
-            this.address = InetAddress.getByName(ip); // Convierte el String de IP
-            this.socket = new DatagramSocket(); // Crea el socket UDP
-            this.isConnected = true;
-            Timber.i("Conexión WiFi iniciada hacia %s:%d", ip, port);
-            return true;
-        } catch (Exception e) {
-            Timber.e(e, "Error al iniciar la conexión WiFi");
-            this.isConnected = false;
-            return false;
-        }
+    public void startWifiConnection(String ip, int port) {
+        this.port = port;
+        // IMPORTANTE: Android prohíbe operaciones de red en el Hilo Principal.
+        // Movemos la creación del Socket al hilo secundario.
+        executorService.execute(() -> {
+            try {
+                this.address = InetAddress.getByName(ip);
+                this.socket = new DatagramSocket();
+                this.isConnected = true;
+                Timber.i("Conexión WiFi iniciada exitosamente hacia %s:%d", ip, port);
+            } catch (Exception e) {
+                Timber.e(e, "Error crítico al iniciar la conexión WiFi UDP");
+                this.isConnected = false;
+            }
+        });
     }
 
     public void stopWifiConnection() {
@@ -59,17 +59,14 @@ public class WifiConnection {
 
     public void send(byte[] message) {
         if (isConnected && socket != null) {
-            // Ejecutamos el envío de red en un hilo secundario
             executorService.execute(() -> {
                 try {
                     DatagramPacket packet = new DatagramPacket(message, message.length, address, port);
                     socket.send(packet);
                 } catch (Exception e) {
-                    Timber.e(e, "Error enviando datos por WiFi");
+                    Timber.e(e, "Error enviando paquete UDP");
                 }
             });
-        } else {
-            Timber.d("WiFi no está conectado. No se pudo enviar el mensaje.");
         }
     }
 

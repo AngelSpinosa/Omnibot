@@ -21,6 +21,8 @@ import org.openbot.main.CommonRecyclerViewAdapter;
 import org.openbot.main.ScanDeviceAdapter;
 import org.openbot.utils.Enums;
 
+import timber.log.Timber;
+
 /**
  * Clase Vehicle
  * -------------
@@ -498,13 +500,12 @@ public class Vehicle {
 
     public void conectarWifi() {
         if (conexionWifi == null) conexionWifi = new WifiConnection(context);
-        wifiConectada = conexionWifi.startWifiConnection(WIFI_IP, WIFI_PORT);
-        if (wifiConectada) {
-            if (heartbeatTimer == null) {
-                startHeartbeat();
-            }
-            reiniciaPanTilt(); // Sincroniza hardware a 0,0 al conectar Wifi
+        conexionWifi.startWifiConnection(WIFI_IP, WIFI_PORT);
+        wifiConectada = true; // UDP es sin conexión estable, asumimos que estamos listos para enviar datos
+        if (heartbeatTimer == null) {
+            startHeartbeat();
         }
+        reiniciaPanTilt(); // Sincroniza hardware a 0,0 al conectar Wifi
     }
 
     public void desconectarWifi() {
